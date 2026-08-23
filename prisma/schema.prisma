@@ -1,0 +1,291 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider     = "postgresql"
+  relationMode = "prisma"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─────────────────────────────
+// Identity
+// Auth + org/household membership is owned by Clerk.
+// This table mirrors just what our app needs locally.
+// ─────────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  clerkUserId  String   @unique // link back to Clerk
+  firstName    String?
+  lastName     String?
+  email        String   @unique
+  imageUrl     String? // Clerk's own hosted photo, mirrored on sync — Clerk owns avatar upload too
+  role         Role     @default(CLIENT)
+  createdAt    DateTime @default(now())
+
+  favoriteRecipes  UserFavoriteRecipe[]
+  purchases        Purchase[]
+  addedListItems   GroceryListItem[] @relation("AddedBy")
+  checkedListItems GroceryListItem[] @relation("CheckedBy")
+  receipts         Receipt[]
+  emailPreference  UserEmailPreference?
+}
+
+model UserEmailPreference {
+  id           String  @id @default(cuid())
+  emailUpdates Boolean @default(true)
+  weeklyReport Boolean @default(false)
+  userId       String  @unique
+  user         User    @relation(fields: [userId], references: [id])
+}
+
+enum Role {
+  CLIENT
+  ADMIN
+  DEVELOPER
+}
+
+// ─────────────────────────────
+// Recipes
+// household is tracked via clerkOrgId, not a local FK
+// ─────────────────────────────
+model Recipe {
+  id           String   @id @default(cuid())
+  clerkOrgId   String // household, via Clerk Organization
+  name         String
+  description  String?
+  servings     Int?
+  prepTime     Int?
+  cookingTime  Int?
+  instructions Json // structured steps: [{ step, text, timerSeconds }]
+  sourceUrl    String? // set if imported from a website
+  createdBy    String // Clerk user id of author
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ingredients RecipeIngredient[]
+  tags        RecipeTag[]
+  favoritedBy UserFavoriteRecipe[]
+  images      RecipeImage[]
+
+  @@index([clerkOrgId])
+}
+
+// Replaces the single `Recipe.recipeImage` string — recipes carry several
+// photos, and the row lets each one keep an order and a caption.
+model RecipeImage {
+  id         String   @id @default(cuid())
+  recipeId   String
+  storageKey String   @unique // object key in the bucket, not a URL
+  sortOrder  Int      @default(0) // 0 is the card thumbnail
+  caption    String?
+  createdAt  DateTime @default(now())
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId])
+}
+
+model UserFavoriteRecipe {
+  userId   String
+  recipeId String
+  user     User   @relation(fields: [userId], references: [id])
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, recipeId])
+  @@index([recipeId])
+}
+
+model Tag {
+  id     String @id @default(cuid())
+  name   String @unique
+  type   String? // "cuisine" | "diet" | "meal_type"
+  recipes RecipeTag[]
+}
+
+model RecipeTag {
+  recipeId String
+  tagId    String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([recipeId, tagId])
+  @@index([tagId])
+}
+
+// ─────────────────────────────
+// Ingredients — the canonical hub
+// ─────────────────────────────
+model Ingredient {
+  id       String @id @default(cuid())
+  name     String @unique
+  category String? // produce, dairy, pantry, etc.
+
+  recipeUses  RecipeIngredient[]
+  listItems   GroceryListItem[]
+  purchases   Purchase[]
+  aliases     IngredientAlias[]
+  staples     StapleReminder[]
+}
+
+// maps messy OCR/import text back to a canonical ingredient
+model IngredientAlias {
+  id           String     @id @default(cuid())
+  aliasText    String
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@index([ingredientId])
+  @@index([aliasText])
+}
+
+model RecipeIngredient {
+  recipeId     String
+  ingredientId String
+  unitId       String?
+  amount       Float?
+  notes        String? // e.g. "diced", "room temperature"
+
+  recipe     Recipe          @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient Ingredient      @relation(fields: [ingredientId], references: [id])
+  unit       MeasurementUnit? @relation(fields: [unitId], references: [id])
+
+  @@id([recipeId, ingredientId])
+  @@index([recipeId])
+  @@index([ingredientId])
+  @@index([unitId])
+}
+
+// ─────────────────────────────
+// Units — supports conversion for merging + comparing
+// ─────────────────────────────
+model MeasurementUnit {
+  id                String  @id @default(cuid())
+  name              String  @unique // "cup", "gram", "tablespoon"
+  abbreviation      String?
+  type              String // "volume" | "weight" | "count"
+  conversionFactor  Float? // multiply to get to base unit
+  baseUnitId        String? // self-relation to the base unit for its type
+
+  baseUnit   MeasurementUnit?  @relation("UnitConversion", fields: [baseUnitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  derivedFrom MeasurementUnit[] @relation("UnitConversion")
+
+  recipeIngredients RecipeIngredient[]
+  listItems         GroceryListItem[]
+  purchases         Purchase[]
+
+  @@index([baseUnitId])
+}
+
+// ─────────────────────────────
+// Grocery lists (current, ephemeral — cleared/completed over time)
+// ─────────────────────────────
+model GroceryList {
+  id         String   @id @default(cuid())
+  clerkOrgId String
+  status     String   @default("active") // active | completed
+  createdAt  DateTime @default(now())
+
+  items GroceryListItem[]
+
+  @@index([clerkOrgId])
+}
+
+model GroceryListItem {
+  id           String   @id @default(cuid())
+  listId       String
+  ingredientId String
+  unitId       String?
+  quantity     Float?
+  checked      Boolean  @default(false)
+  source       String // "recipe" | "staple" | "manual"
+  addedById    String?
+  checkedById  String?
+  createdAt    DateTime @default(now())
+
+  list       GroceryList      @relation(fields: [listId], references: [id], onDelete: Cascade)
+  ingredient Ingredient       @relation(fields: [ingredientId], references: [id])
+  unit       MeasurementUnit? @relation(fields: [unitId], references: [id])
+  addedBy    User?            @relation("AddedBy", fields: [addedById], references: [id])
+  checkedBy  User?            @relation("CheckedBy", fields: [checkedById], references: [id])
+
+  @@index([listId])
+  @@index([ingredientId])
+  @@index([unitId])
+  @@index([addedById])
+  @@index([checkedById])
+}
+
+model StapleReminder {
+  id            String   @id @default(cuid())
+  clerkOrgId    String
+  ingredientId  String
+  frequencyDays Int
+  lastAddedAt   DateTime?
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@index([clerkOrgId])
+  @@index([ingredientId])
+}
+
+// ─────────────────────────────
+// Spending — permanent history, one row per purchase event
+// ─────────────────────────────
+model Store {
+  id         String  @id @default(cuid())
+  clerkOrgId String?
+  name       String
+
+  purchases Purchase[]
+  receipts  Receipt[]
+
+  @@index([clerkOrgId])
+}
+
+model Receipt {
+  id          String   @id @default(cuid())
+  clerkOrgId  String
+  userId      String
+  storeId     String?
+  imageS3Key  String
+  status      String   @default("uploaded") // uploaded | processing | parsed | failed
+  rawOcrText  String?
+  createdAt   DateTime @default(now())
+
+  user      User       @relation(fields: [userId], references: [id])
+  store     Store?     @relation(fields: [storeId], references: [id])
+  purchases Purchase[]
+
+  @@index([clerkOrgId])
+  @@index([userId])
+  @@index([storeId])
+}
+
+model Purchase {
+  id           String   @id @default(cuid())
+  clerkOrgId   String
+  userId       String
+  ingredientId String
+  unitId       String?
+  storeId      String?
+  receiptId    String? // null if manually entered
+  price        Float
+  quantity     Float?
+  purchasedAt  DateTime @default(now())
+
+  user       User             @relation(fields: [userId], references: [id])
+  ingredient Ingredient       @relation(fields: [ingredientId], references: [id])
+  unit       MeasurementUnit? @relation(fields: [unitId], references: [id])
+  store      Store?           @relation(fields: [storeId], references: [id])
+  receipt    Receipt?         @relation(fields: [receiptId], references: [id])
+
+  @@index([clerkOrgId, purchasedAt])
+  @@index([userId])
+  @@index([ingredientId])
+  @@index([unitId])
+  @@index([storeId])
+  @@index([receiptId])
+}

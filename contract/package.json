@@ -1,0 +1,20 @@
+{
+  "name": "@cookhouse/api-contract",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Published AppRouter type from cookhouse-api. Types only — no runtime code, no Prisma, no server dependencies ship in this package. Lets cookhouse-webplatform (and a future mobile client) keep tRPC's end-to-end type inference once the backend and frontend are separate repos, without either depending on the other's source.",
+  "types": "dist/router.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepublishOnly": "test -f dist/router.d.ts || (echo 'dist/router.d.ts missing — run pnpm build:contract from cookhouse-api first' && exit 1)"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/REPLACE_ME/cookhouse-api.git"
+  }
+}
