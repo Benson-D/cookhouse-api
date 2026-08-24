@@ -41,6 +41,23 @@ export function allowedImageTypes(): string[] {
 }
 
 /**
+ * Formats AWS Textract's synchronous `AnalyzeExpense` actually accepts —
+ * narrower than the general upload allowlist above. HEIC (the default on
+ * iPhone) and WebP/AVIF all fail with `UnsupportedDocumentException`; those
+ * are fine for recipe photos, which just get stored and displayed, but not
+ * for a receipt that's about to be handed to Textract.
+ */
+const TEXTRACT_COMPATIBLE_TYPES = new Set(["image/jpeg", "image/png"]);
+
+export function isTextractCompatibleImageType(contentType: string): boolean {
+  return TEXTRACT_COMPATIBLE_TYPES.has(contentType);
+}
+
+export function allowedReceiptImageTypes(): string[] {
+  return [...TEXTRACT_COMPATIBLE_TYPES];
+}
+
+/**
  * Builds the object key for a recipe photo.
  *
  * The extension comes from the declared content type, never from a

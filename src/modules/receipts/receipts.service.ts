@@ -10,7 +10,7 @@ import {
   createReadUrl,
   createUploadUrl,
   deleteObject,
-  isAllowedImageType,
+  isTextractCompatibleImageType,
   keyBelongsToHouseholdReceipts,
 } from "../../lib/storage.js";
 import { analyzeReceipt } from "../../lib/textract.js";
@@ -26,6 +26,13 @@ type Actor = { clerkOrgId: string; clerkUserId: string };
  * gate here is having an active household at all (already enforced by
  * `householdProcedure`).
  *
+ * Deliberately narrower than recipe photos' allowed types: Textract's
+ * `AnalyzeExpense` only accepts JPEG and PNG, and fails on HEIC — the
+ * default format an iPhone camera actually produces — with
+ * `UnsupportedDocumentException`. Rejecting it here means that error surfaces
+ * immediately as "pick a different photo," not confusingly after a receipt
+ * row already exists and Textract has already run.
+ *
  * Writes nothing. See `scan` for where the `Receipt` row actually gets
  * created.
  */
@@ -34,10 +41,10 @@ export async function createUpload(
   contentType: string,
   actor: Actor
 ) {
-  if (!isAllowedImageType(contentType)) {
+  if (!isTextractCompatibleImageType(contentType)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `Unsupported image type: ${contentType}`,
+      message: `Unsupported image type for receipts: ${contentType}. Use JPEG or PNG — on iPhone, switch Camera to "Most Compatible" in Settings > Camera > Formats, or share the photo as JPEG when uploading.`,
     });
   }
 
@@ -91,9 +98,21 @@ export async function scan(prisma: PrismaClient, storageKey: string, actor: Acto
     // same unhelpful dead end server-side.
     console.error(`Textract failed for receipt ${receipt.id}:`, error);
     await prisma.receipt.update({ where: { id: receipt.id }, data: { status: "failed" } });
+
+    // createUpload already rejects a *declared* image/heic — this is the
+    // other half: iOS Safari can report a real HEIC file's type as
+    // image/jpeg via the file picker, so the bytes that actually reach S3
+    // are still HEIC despite passing that check. Textract's own rejection is
+    // the only reliable way to catch that case, so it's worth a specific,
+    // actionable message rather than the generic fallback below.
+    const isUnsupportedFormat =
+      error instanceof Error && error.name === "UnsupportedDocumentException";
+
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: "Couldn't read this receipt — try a clearer photo.",
+      message: isUnsupportedFormat
+        ? "This photo's format can't be read, even though it looked like a JPEG or PNG — this happens with some iPhone photos. Try Settings > Camera > Formats > \"Most Compatible\" on your phone, then retake the photo, or pick a different one."
+        : "Couldn't read this receipt — try a clearer photo.",
     });
   }
 
