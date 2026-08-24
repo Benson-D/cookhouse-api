@@ -8,12 +8,51 @@ type Actor = { clerkOrgId: string; clerkUserId: string };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+const editorSelect = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  email: true,
+} satisfies Prisma.UserSelect;
+
 const itemsInclude = {
   items: {
-    include: { ingredient: true, unit: true },
+    include: {
+      ingredient: true,
+      unit: true,
+      addedBy: { select: editorSelect },
+      checkedBy: { select: editorSelect },
+    },
     orderBy: { createdAt: "asc" },
   },
 } satisfies Prisma.GroceryListInclude;
+
+/**
+ * Who most recently touched the list, and when — for a "last edited by
+ * JM · 4 min ago" line, not for a per-row "who" column (a shared grocery list
+ * is used one-handed in a shop; per-item attribution isn't worth the space).
+ *
+ * Attributed to `checkedBy` over `addedBy` when both could apply, since
+ * checking something off is usually the more recent, more relevant action —
+ * best-effort, not a full audit trail. `checkedById` is cleared on uncheck
+ * (see `setChecked`), so an item's most recent touch being an uncheck has no
+ * actor to attribute it to; `at` is still accurate either way.
+ */
+function lastEdited(
+  items: { updatedAt: Date; addedBy: EditorInfo | null; checkedBy: EditorInfo | null }[]
+) {
+  if (items.length === 0) return null;
+  const latest = items.reduce((a, b) => (a.updatedAt > b.updatedAt ? a : b));
+  return { at: latest.updatedAt, by: latest.checkedBy ?? latest.addedBy };
+}
+
+type EditorInfo = Prisma.UserGetPayload<{ select: typeof editorSelect }>;
+
+function withLastEdited<T extends { items: Parameters<typeof lastEdited>[0] }>(
+  list: T
+) {
+  return { ...list, lastEdited: lastEdited(list.items) };
+}
 
 /**
  * A grocery list is shared household state, so unlike recipes there is no
@@ -196,10 +235,11 @@ export async function getActive(prisma: PrismaClient, actor: Actor) {
 
   await applyDueStaples(prisma, listId, actor.clerkOrgId);
 
-  return prisma.groceryList.findUniqueOrThrow({
+  const list = await prisma.groceryList.findUniqueOrThrow({
     where: { id: listId },
     include: itemsInclude,
   });
+  return withLastEdited(list);
 }
 
 /**
@@ -246,10 +286,11 @@ export async function addFromRecipes(
     user.id
   );
 
-  return prisma.groceryList.findUniqueOrThrow({
+  const updated = await prisma.groceryList.findUniqueOrThrow({
     where: { id: list.id },
     include: itemsInclude,
   });
+  return withLastEdited(updated);
 }
 
 /**
@@ -284,10 +325,11 @@ export async function addItem(
     user.id
   );
 
-  return prisma.groceryList.findUniqueOrThrow({
+  const updated = await prisma.groceryList.findUniqueOrThrow({
     where: { id: list.id },
     include: itemsInclude,
   });
+  return withLastEdited(updated);
 }
 
 /**
@@ -347,11 +389,39 @@ export async function complete(prisma: PrismaClient, actor: Actor) {
     throw new TRPCError({ code: "NOT_FOUND", message: "No active list" });
   }
 
-  return prisma.groceryList.update({
+  const completed = await prisma.groceryList.update({
     where: { id: active.id },
     data: { status: "completed" },
     include: itemsInclude,
   });
+  return withLastEdited(completed);
+}
+
+/**
+ * Deletes every item on the active list but leaves the list itself active —
+ * distinct from `complete`, which archives it. For "this was built from the
+ * wrong recipes, start over," not "we're done shopping."
+ *
+ * Writes: GroceryListItem (delete all for this list).
+ * Throws NOT_FOUND if the household has no active list.
+ */
+export async function removeAll(prisma: PrismaClient, actor: Actor) {
+  const active = await prisma.groceryList.findFirst({
+    where: { clerkOrgId: actor.clerkOrgId, status: "active" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (!active) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "No active list" });
+  }
+
+  await prisma.groceryListItem.deleteMany({ where: { listId: active.id } });
+
+  const cleared = await prisma.groceryList.findUniqueOrThrow({
+    where: { id: active.id },
+    include: itemsInclude,
+  });
+  return withLastEdited(cleared);
 }
 
 /** A page of archived lists, newest first, with the total for pagination. */
@@ -376,7 +446,7 @@ export async function history(
     prisma.groceryList.count({ where }),
   ]);
 
-  return { lists, total, ...filters };
+  return { lists: lists.map(withLastEdited), total, ...filters };
 }
 
 export { getListForHousehold };

@@ -40,6 +40,9 @@ export const groceryListsRouter = router({
   /** Archive the active list; the next getActive starts a fresh one. */
   complete: householdProcedure.mutation(({ ctx }) => lists.complete(ctx.prisma, ctx)),
 
+  /** Delete every item on the active list; the list itself stays active. */
+  removeAll: householdProcedure.mutation(({ ctx }) => lists.removeAll(ctx.prisma, ctx)),
+
   /** Past lists, newest first. */
   history: householdProcedure
     .input(historyInput)
