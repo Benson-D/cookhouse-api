@@ -71,6 +71,26 @@ export function keyBelongsToRecipe(
   return key.startsWith(`recipes/${clerkOrgId}/${recipeId}/`);
 }
 
+/**
+ * Builds the object key for a receipt photo.
+ *
+ * No recipeId-style entity to scope under here — unlike a recipe, a receipt
+ * doesn't exist yet at upload time; the photo *is* the starting point, so the
+ * `Receipt` row is only created once scanning begins, keyed off this object.
+ */
+export function buildReceiptImageKey(clerkOrgId: string, contentType: string): string {
+  const extension = IMAGE_EXTENSIONS[contentType];
+  if (!extension) {
+    throw new Error(`Unsupported image type: ${contentType}`);
+  }
+  return `receipts/${clerkOrgId}/${randomUUID()}.${extension}`;
+}
+
+/** True when `key` sits under the prefix owned by this household's receipts. */
+export function keyBelongsToHouseholdReceipts(key: string, clerkOrgId: string): boolean {
+  return key.startsWith(`receipts/${clerkOrgId}/`);
+}
+
 type StorageConfig = {
   bucket: string;
   region: string;
@@ -126,6 +146,11 @@ function storage() {
 
   cached = { config, client };
   return cached;
+}
+
+/** The configured bucket name — for callers (Textract) that need to reference an object directly rather than via a presigned URL. */
+export function bucketName(): string {
+  return storage().config.bucket;
 }
 
 /** Presigned PUT the client uploads to directly. Short-lived by design. */

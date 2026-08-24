@@ -5,6 +5,8 @@ import { groceryListsRouter } from "./modules/grocery-lists/grocery-lists.router
 import { ingredientsRouter } from "./modules/ingredients/ingredients.router.js";
 import { tagsRouter } from "./modules/tags/tags.router.js";
 import { unitsRouter } from "./modules/units/units.router.js";
+import { receiptsRouter } from "./modules/receipts/receipts.router.js";
+import { spendingRouter } from "./modules/spending/spending.router.js";
 
 export const appRouter = router({
   /** Unauthenticated liveness check. */
@@ -16,6 +18,8 @@ export const appRouter = router({
   ingredients: ingredientsRouter,
   tags: tagsRouter,
   units: unitsRouter,
+  receipts: receiptsRouter,
+  spending: spendingRouter,
 });
 
 export type AppRouter = typeof appRouter;

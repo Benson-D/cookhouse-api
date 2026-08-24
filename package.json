@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",
+    "@aws-sdk/client-textract": "^3.1116.0",
     "@aws-sdk/s3-request-presigner": "^3.1116.0",
     "@clerk/backend": "^1.18.0",
     "@prisma/adapter-pg": "^7.9.1",

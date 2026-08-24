@@ -215,10 +215,10 @@ pnpm db:seed:demo:clean   # remove them
 pnpm build:contract  # rebuild contract/dist/router.d.ts — see Contract package above
 ```
 
-**`db:push` (`prisma db push`) exists but isn't the real workflow** — it
-schema-syncs without a migration file, which drifts from the `migrations/`
-history the moment someone uses it. Left in `package.json` for now; treat
-`db:migrate` as the actual way to change the schema.
+**Use `db:migrate`, never `prisma db push`.** `db:push` schema-syncs without
+writing a migration file, which silently drifts the database from the
+`migrations/` history the moment it's used — it was deliberately removed from
+`package.json` rather than just left as a documented footgun.
 
 Tests currently cover pure `lib/*` functions and zod input schemas only — no
 database, no stub. Services already take `prisma` as a parameter rather than
