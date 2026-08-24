@@ -6,6 +6,7 @@ import {
   createReadUrl,
   createUploadUrl,
   deleteObject,
+  ensureWebSafeImage,
   isAllowedImageType,
   keyBelongsToRecipe,
 } from "../../lib/storage.js";
@@ -66,6 +67,16 @@ export async function createUpload(
  * trusted, so a caller cannot attach an object belonging to another recipe or
  * another household by passing its key.
  *
+ * Runs `ensureWebSafeImage` before recording anything — if the upload turns
+ * out to actually be HEIC (regardless of what it was labeled; iOS Safari can
+ * report a real HEIC file as image/jpeg), it's converted to JPEG and
+ * re-stored first. Without this, a recipe photo taken straight from an
+ * iPhone would look fine to the person who uploaded it (Safari can render
+ * HEIC) and show as a broken image to everyone else in the household on any
+ * other browser. `ensureWebSafeImage`'s replaced extension still matches this
+ * recipe's key prefix, so the belongs-to-recipe check below still holds for
+ * the returned key.
+ *
  * New images sort to the end; the first image (sortOrder 0) is the thumbnail.
  *
  * Writes: RecipeImage.
@@ -85,6 +96,8 @@ export async function attach(
     throw new TRPCError({ code: "BAD_REQUEST", message: "Key does not belong to recipe" });
   }
 
+  const webSafeKey = await ensureWebSafeImage(storageKey);
+
   const last = await prisma.recipeImage.findFirst({
     where: { recipeId },
     orderBy: { sortOrder: "desc" },
@@ -94,7 +107,7 @@ export async function attach(
   return prisma.recipeImage.create({
     data: {
       recipeId,
-      storageKey,
+      storageKey: webSafeKey,
       caption,
       sortOrder: last ? last.sortOrder + 1 : 0,
     },

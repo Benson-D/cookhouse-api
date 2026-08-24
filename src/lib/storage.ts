@@ -6,6 +6,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { convertHeicToJpeg, isHeic } from "./heic.js";
 
 /**
  * Object storage, written against the S3 API so the provider stays a config
@@ -38,23 +39,6 @@ export function isAllowedImageType(contentType: string): boolean {
 
 export function allowedImageTypes(): string[] {
   return Object.keys(IMAGE_EXTENSIONS);
-}
-
-/**
- * Formats AWS Textract's synchronous `AnalyzeExpense` actually accepts —
- * narrower than the general upload allowlist above. HEIC (the default on
- * iPhone) and WebP/AVIF all fail with `UnsupportedDocumentException`; those
- * are fine for recipe photos, which just get stored and displayed, but not
- * for a receipt that's about to be handed to Textract.
- */
-const TEXTRACT_COMPATIBLE_TYPES = new Set(["image/jpeg", "image/png"]);
-
-export function isTextractCompatibleImageType(contentType: string): boolean {
-  return TEXTRACT_COMPATIBLE_TYPES.has(contentType);
-}
-
-export function allowedReceiptImageTypes(): string[] {
-  return [...TEXTRACT_COMPATIBLE_TYPES];
 }
 
 /**
@@ -201,4 +185,52 @@ export function createReadUrl(key: string): Promise<string> {
 export async function deleteObject(key: string): Promise<void> {
   const { client, config } = storage();
   await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }));
+}
+
+/** Fetches an object's bytes directly — for server-side processing, not client downloads. */
+async function getObjectBytes(key: string): Promise<Buffer> {
+  const { client, config } = storage();
+  const response = await client.send(new GetObjectCommand({ Bucket: config.bucket, Key: key }));
+  const bytes = await response.Body?.transformToByteArray();
+  if (!bytes) {
+    throw new Error(`Object has no body: ${key}`);
+  }
+  return Buffer.from(bytes);
+}
+
+/** Writes bytes directly — for server-generated content, not client uploads (those go through `createUploadUrl`). */
+async function putObject(key: string, bytes: Buffer, contentType: string): Promise<void> {
+  const { client, config } = storage();
+  await client.send(
+    new PutObjectCommand({ Bucket: config.bucket, Key: key, Body: bytes, ContentType: contentType })
+  );
+}
+
+/**
+ * If `key` is actually a HEIC file — regardless of what it's labeled as —
+ * converts it to JPEG, uploads the result under a new key, deletes the
+ * original, and returns the new key. Otherwise returns `key` unchanged.
+ *
+ * Detection reads the real bytes rather than trusting the object's declared
+ * content type, since iOS Safari can report a genuine HEIC file as
+ * image/jpeg through the file picker — the mislabeled case is exactly as
+ * common as the honestly-labeled one, so both have to go through the same
+ * byte-level check.
+ *
+ * Called from both recipe-photo and receipt-photo upload paths: HEIC breaks
+ * two unrelated things — Textract can't read it at all, and no browser
+ * except Safari renders it in an <img> tag — so both need this regardless of
+ * which one triggered the call.
+ */
+export async function ensureWebSafeImage(key: string): Promise<string> {
+  const original = await getObjectBytes(key);
+  if (!isHeic(original)) {
+    return key;
+  }
+
+  const converted = await convertHeicToJpeg(original);
+  const newKey = key.replace(/\.[^./]+$/, ".jpg");
+  await putObject(newKey, converted, "image/jpeg");
+  await deleteObject(key);
+  return newKey;
 }
