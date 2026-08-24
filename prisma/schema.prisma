@@ -204,6 +204,7 @@ model GroceryListItem {
   addedById    String?
   checkedById  String?
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
 
   list       GroceryList      @relation(fields: [listId], references: [id], onDelete: Cascade)
   ingredient Ingredient       @relation(fields: [ingredientId], references: [id])
@@ -234,10 +235,13 @@ model StapleReminder {
 // ─────────────────────────────
 // Spending — permanent history, one row per purchase event
 // ─────────────────────────────
+// Global, like Ingredient — two households shopping at "Trader Joe's
+// Downtown" share one row rather than each getting a duplicate. clerkOrgId
+// is unused as a result (kept nullable rather than dropped — see CLAUDE.md).
 model Store {
   id         String  @id @default(cuid())
   clerkOrgId String?
-  name       String
+  name       String  @unique
 
   purchases Purchase[]
   receipts  Receipt[]
