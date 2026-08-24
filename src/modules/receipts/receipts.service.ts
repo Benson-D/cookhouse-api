@@ -1,7 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import type { PrismaClient } from "@prisma/client";
 import { getOrSync } from "../users/users.service.js";
-import { findOrCreate as findOrCreateIngredient } from "../ingredients/ingredients.service.js";
+import {
+  findExisting as findExistingIngredient,
+  findOrCreate as findOrCreateIngredient,
+} from "../ingredients/ingredients.service.js";
 import {
   buildReceiptImageKey,
   createReadUrl,
@@ -52,6 +55,14 @@ export async function createUpload(
  * rows until `confirmPurchases`. A Textract failure still leaves a `Receipt`
  * row (status `failed`) rather than silently losing the upload.
  *
+ * Each line item is also checked against `Ingredient`/`IngredientAlias` —
+ * read-only, via `ingredients.findExisting` — and annotated with what it
+ * matched, if anything. This is what lets a review screen tell "new
+ * ingredient" lines apart from ones that already resolve to something, before
+ * `confirmPurchases` commits anything. There's no fuzzy/low-confidence tier:
+ * matching here is exact name or exact alias, same as everywhere else in this
+ * codebase — a line either matches or it's new, nothing in between yet.
+ *
  * Throws BAD_REQUEST if the key doesn't belong to this household's receipts.
  */
 export async function scan(prisma: PrismaClient, storageKey: string, actor: Actor) {
@@ -91,7 +102,18 @@ export async function scan(prisma: PrismaClient, storageKey: string, actor: Acto
     data: { status: "parsed", rawOcrText: JSON.stringify(parsed) },
   });
 
-  return { receiptId: receipt.id, ...parsed };
+  const lineItems = await Promise.all(
+    parsed.lineItems.map(async (item) => {
+      const match = await findExistingIngredient(prisma, item.description);
+      return {
+        ...item,
+        matchedIngredientId: match?.id ?? null,
+        matchedIngredientName: match?.name ?? null,
+      };
+    })
+  );
+
+  return { receiptId: receipt.id, ...parsed, lineItems };
 }
 
 /** Finds a store by name, creating it if new — global, like `Ingredient` (see schema.prisma). */

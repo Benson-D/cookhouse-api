@@ -16,6 +16,26 @@ export function list(prisma: PrismaClient, search?: string) {
 }
 
 /**
+ * The read half of `findOrCreate` — same alias-then-exact-name lookup,
+ * without the create. For previewing whether a name already resolves to an
+ * ingredient (a scanned receipt line, say) before anything is committed;
+ * creating one at preview time would be premature since nothing's been
+ * confirmed yet. A small, deliberate duplication of `findOrCreate`'s lookup
+ * rather than a shared refactor, so a preview-only check can never risk
+ * changing that function's already-relied-upon behavior.
+ */
+export async function findExisting(prisma: PrismaClient, name: string) {
+  const alias = await prisma.ingredientAlias.findFirst({
+    where: { aliasText: { equals: name, mode: "insensitive" } },
+    include: { ingredient: true },
+  });
+  if (alias) {
+    return alias.ingredient;
+  }
+  return prisma.ingredient.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
+}
+
+/**
  * Resolves a name to its canonical `Ingredient`, creating one if new.
  *
  * Checks `IngredientAlias` first, so messy text already mapped to a canonical
