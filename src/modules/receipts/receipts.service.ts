@@ -77,6 +77,14 @@ export async function createUpload(
  * matching here is exact name or exact alias, same as everywhere else in this
  * codebase — a line either matches or it's new, nothing in between yet.
  *
+ * The response also includes `imageUrl` (the converted object's real,
+ * renderable URL) so the review screen can swap away from a local
+ * `URL.createObjectURL(file)` preview of the *original* picked file once
+ * this resolves — that local preview is still raw HEIC bytes if that's what
+ * was picked, and no browser but Safari can render those. `ensureWebSafeImage`
+ * fixes the *stored* image; this is what lets the caller stop showing the
+ * unfixed one.
+ *
  * Throws BAD_REQUEST if the key doesn't belong to this household's receipts.
  */
 export async function scan(prisma: PrismaClient, storageKey: string, actor: Actor) {
@@ -138,7 +146,12 @@ export async function scan(prisma: PrismaClient, storageKey: string, actor: Acto
     })
   );
 
-  return { receiptId: receipt.id, ...parsed, lineItems };
+  return {
+    receiptId: receipt.id,
+    ...parsed,
+    lineItems,
+    imageUrl: await createReadUrl(webSafeKey),
+  };
 }
 
 /** Finds a store by name, creating it if new — global, like `Ingredient` (see schema.prisma). */
