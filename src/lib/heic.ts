@@ -1,11 +1,9 @@
 import jpeg from "jpeg-js";
-// @ts-expect-error — no published types for the friendly HeifDecoder API;
-// the package only ships types for the raw low-level WASM bindings, a
-// different layer than what's used here. The wasm-bundle variant embeds the
-// .wasm binary directly in the JS rather than loading it from a path
-// relative to process.cwd(), which is how the plain "wasm" entry point does
-// it — that made it fail depending on where the server process was launched
-// from. Bundled avoids that entirely.
+// @ts-expect-error — libheif-js has no types for this friendlier HeifDecoder
+// API, only its low-level WASM bindings.
+// wasm-bundle over the plain "wasm" entry: it embeds the .wasm binary
+// directly instead of loading it relative to process.cwd(), which broke
+// depending on where the server was launched from.
 import libheif from "libheif-js/wasm-bundle";
 
 type HeifImage = {
@@ -22,25 +20,13 @@ type HeifDecoder = {
 };
 
 /**
- * HEIC/HEIF detection and conversion — pure functions, no S3, no Prisma (the
- * orchestration around this — fetch from the bucket, upload the result,
- * delete the original — lives in `storage.ts`, which already owns every S3
- * operation).
+ * HEIC/HEIF detection and conversion.
  *
- * Recipe photos and receipt photos both need this: a real iPhone photo can
- * be HEIC even when labeled otherwise (iOS Safari can report a real HEIC
- * file's type as image/jpeg via the file picker), which breaks two
- * unrelated things — Textract can't read HEIC at all, and no browser except
- * Safari can render it in an <img> tag. Detecting from the actual bytes
- * catches both the honestly-labeled and the mislabeled case the same way.
+ * Detects from actual bytes, not the declared content type — iOS Safari can
+ * report a real HEIC file as image/jpeg via the file picker.
  */
 
-/**
- * True when `bytes` is a real HEIC/HEIF file, regardless of what it's
- * labeled as. HEIC is ISO-base-media-format (the same container family as
- * MP4): a "ftyp" box a few bytes in, followed by a brand code identifying
- * the specific variant.
- */
+/** True when `bytes` is a real HEIC/HEIF file, regardless of what it's labeled. */
 export function isHeic(bytes: Buffer): boolean {
   if (bytes.length < 12) {
     return false;

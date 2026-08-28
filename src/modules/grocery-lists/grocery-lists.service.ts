@@ -1,12 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { mergeLines, type MergeLine, type UnitRef } from "../../lib/units.js";
+import { computeFreshlyStocked, DAY_MS } from "../../lib/staples.js";
 import { getOrSync } from "../users/users.service.js";
 import type { AddItemInput, HistoryInput } from "./grocery-lists.input.js";
 
 type Actor = { clerkOrgId: string; clerkUserId: string };
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const editorSelect = {
   id: true,
@@ -155,7 +154,8 @@ async function mergeIntoList(
   listId: string,
   incoming: Array<{ ingredientId: string; quantity: number | null; unit: UnitRef }>,
   source: string,
-  userId: string
+  userId: string,
+  freshlyStocked: Set<string> = new Set()
 ) {
   const current = await prisma.groceryListItem.findMany({
     where: { listId },
@@ -190,6 +190,7 @@ async function mergeIntoList(
             quantity: line.quantity,
             source,
             addedById: userId,
+            checked: freshlyStocked.has(line.ingredientId),
           },
         })
       );
@@ -243,11 +244,67 @@ export async function getActive(prisma: PrismaClient, actor: Actor) {
 }
 
 /**
+ * Of the given ingredient ids, returns the subset that are household staples
+ * the household was last checked off within their own `frequencyDays` — i.e.
+ * "you probably still have this."
+ *
+ * Deliberately keyed off a *checked-off item on a completed list*, not
+ * `StapleReminder.lastAddedAt` (that only means "we last reminded you," not
+ * "you actually bought it") and not `Purchase` (only populated by receipt
+ * scanning, so a household that never scans receipts would never benefit,
+ * and OCR'd line items are matched against noisy brand-name text — a
+ * checked-off list row is tied to the canonical `Ingredient` id directly, no
+ * fuzzy matching involved). A completed list's checked items are frozen once
+ * the list moves out of `active` status, so `updatedAt` reliably reflects
+ * when it was checked, not some later unrelated edit.
+ */
+async function getFreshlyStockedStaples(
+  prisma: PrismaClient,
+  clerkOrgId: string,
+  ingredientIds: string[]
+): Promise<Set<string>> {
+  if (ingredientIds.length === 0) return new Set();
+
+  const staples = await prisma.stapleReminder.findMany({
+    where: { clerkOrgId, ingredientId: { in: ingredientIds } },
+    select: { ingredientId: true, frequencyDays: true },
+  });
+  if (staples.length === 0) return new Set();
+
+  const lastChecked = await prisma.groceryListItem.findMany({
+    where: {
+      ingredientId: { in: staples.map((s) => s.ingredientId) },
+      checked: true,
+      list: { clerkOrgId, status: "completed" },
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { ingredientId: true, updatedAt: true },
+  });
+
+  const mostRecentByIngredient = new Map<string, Date>();
+  for (const item of lastChecked) {
+    if (!mostRecentByIngredient.has(item.ingredientId)) {
+      mostRecentByIngredient.set(item.ingredientId, item.updatedAt);
+    }
+  }
+
+  return computeFreshlyStocked(staples, mostRecentByIngredient, Date.now());
+}
+
+/**
  * Adds every ingredient from the given recipes to the active list, merged.
  *
  * Recipe lines are merged against each other *and* against what is already on
  * the list, so adding two recipes that both call for flour produces one line.
  * Merging happens per (ingredient, unit family) — see lib/units.ts.
+ *
+ * A line whose ingredient is a staple the household was recently checked off
+ * for (see `getFreshlyStockedStaples`) still gets added — so the recipe's
+ * full ingredient list stays visible — but pre-checked, distinguishable from
+ * a person's own checkoff by having no `checkedById`. Only applies to a
+ * brand-new row: `mergeIntoList` never touches the checked state of a row
+ * that already exists, so this can't flip something a person already
+ * unchecked back on.
  *
  * Note this is lossy by design: `GroceryListItem` records no link back to the
  * recipe it came from, so "remove this recipe's contribution" is not
@@ -272,19 +329,20 @@ export async function addFromRecipes(
   const list = await getActive(prisma, actor);
   const user = await getOrSync(prisma, actor.clerkUserId);
 
-  await mergeIntoList(
-    prisma,
-    list.id,
-    recipes.flatMap((recipe) =>
-      recipe.ingredients.map((line) => ({
-        ingredientId: line.ingredientId,
-        quantity: line.amount,
-        unit: line.unit,
-      }))
-    ),
-    "recipe",
-    user.id
+  const lines = recipes.flatMap((recipe) =>
+    recipe.ingredients.map((line) => ({
+      ingredientId: line.ingredientId,
+      quantity: line.amount,
+      unit: line.unit,
+    }))
   );
+  const freshlyStocked = await getFreshlyStockedStaples(
+    prisma,
+    actor.clerkOrgId,
+    [...new Set(lines.map((line) => line.ingredientId))]
+  );
+
+  await mergeIntoList(prisma, list.id, lines, "recipe", user.id, freshlyStocked);
 
   const updated = await prisma.groceryList.findUniqueOrThrow({
     where: { id: list.id },

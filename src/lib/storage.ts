@@ -182,6 +182,7 @@ export function createReadUrl(key: string): Promise<string> {
   });
 }
 
+/** Deletes an object from the bucket. */
 export async function deleteObject(key: string): Promise<void> {
   const { client, config } = storage();
   await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }));
@@ -207,20 +208,11 @@ async function putObject(key: string, bytes: Buffer, contentType: string): Promi
 }
 
 /**
- * If `key` is actually a HEIC file — regardless of what it's labeled as —
- * converts it to JPEG, uploads the result under a new key, deletes the
- * original, and returns the new key. Otherwise returns `key` unchanged.
+ * Converts `key` to JPEG if it's actually HEIC, replacing the stored object;
+ * otherwise returns `key` unchanged.
  *
- * Detection reads the real bytes rather than trusting the object's declared
- * content type, since iOS Safari can report a genuine HEIC file as
- * image/jpeg through the file picker — the mislabeled case is exactly as
- * common as the honestly-labeled one, so both have to go through the same
- * byte-level check.
- *
- * Called from both recipe-photo and receipt-photo upload paths: HEIC breaks
- * two unrelated things — Textract can't read it at all, and no browser
- * except Safari renders it in an <img> tag — so both need this regardless of
- * which one triggered the call.
+ * Checks the real bytes, not the declared content type — iOS Safari can
+ * report a genuine HEIC file as image/jpeg through the file picker.
  */
 export async function ensureWebSafeImage(key: string): Promise<string> {
   const original = await getObjectBytes(key);

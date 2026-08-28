@@ -4,8 +4,8 @@ import "dotenv/config";
 import { addFromRecipes } from "../src/modules/grocery-lists/grocery-lists.service.js";
 
 /**
- * Demo fixtures for local development — recipes, staples and a grocery list
- * belonging to one real Clerk household.
+ * Demo fixtures for local development — recipes, staples, a grocery list and
+ * six months of purchases belonging to one real Clerk household.
  *
  * Deliberately NOT wired into `prisma db seed`. That command runs
  * automatically after `prisma migrate reset` and against whatever database is
@@ -107,6 +107,8 @@ const ingredients: Array<{ name: string; category: string }> = [
   { name: "apples", category: "produce" },
   { name: "cinnamon", category: "pantry" },
   { name: "puff pastry", category: "chilled" },
+  { name: "bread", category: "bakery" },
+  { name: "jelly", category: "pantry" },
 ];
 
 type DemoLine = { ingredient: string; unit: string | null; amount: number | null; notes?: string };
@@ -736,16 +738,126 @@ const recipes: DemoRecipe[] = [
       { text: "Cool completely on the tray — that is where the clusters form." },
     ],
   },
+  {
+    slug: "pbj",
+    name: "Peanut Butter & Jelly Sandwich",
+    description: "The staple-check demo recipe — see the `staples` fixture below.",
+    servings: 1,
+    prepTime: 3,
+    cookingTime: 0,
+    tags: ["lunch", "snack"],
+    lines: [
+      line("bread", 2, "piece"),
+      line("peanut butter", 2, "tablespoon"),
+      line("jelly", 1, "tablespoon"),
+    ],
+    steps: [
+      { text: "Spread peanut butter on one slice, jelly on the other." },
+      { text: "Press together and slice on the diagonal, if you're feeling fancy." },
+    ],
+  },
 ];
 
-/** `lastAddedAt: null` leaves both due immediately, so opening the list shows the lazy staple rule firing. */
-const staples: Array<{ ingredient: string; frequencyDays: number }> = [
+/**
+ * `lastAddedDaysAgo` omitted (milk, eggs) leaves `lastAddedAt: null`, i.e. due
+ * immediately, so opening the list shows the *lazy staple reminder* firing.
+ *
+ * Bread is deliberately given a recent `lastAddedAt` instead, so that lazy
+ * reminder does NOT also add it to the active list — that would beat the
+ * newer "freshly stocked" feature to the punch and merge into an existing
+ * row, which never gets pre-checked (see `mergeIntoList`). Bread's own
+ * freshness for *that* feature comes from a separate signal — a checked-off
+ * item on the completed `demo-list-history` list below, 3 days before now,
+ * inside its 7-day frequency. Add the "Peanut Butter & Jelly Sandwich"
+ * recipe via "Add from recipes" to see bread show up pre-checked as
+ * "Already have it" while peanut butter and jelly still need buying.
+ */
+const staples: Array<{ ingredient: string; frequencyDays: number; lastAddedDaysAgo?: number }> = [
   { ingredient: "milk", frequencyDays: 5 },
   { ingredient: "eggs", frequencyDays: 7 },
+  { ingredient: "bread", frequencyDays: 7, lastAddedDaysAgo: 3 },
 ];
 
 /** Recipes whose ingredients are merged into the active list, chosen for the flour case. */
 const listedRecipes = ["pancakes", "shortbread", "carbonara"];
+
+/**
+ * Stores are global rows, like `Ingredient` — upserted by name, never
+ * deleted (see `findOrCreateStore` in `receipts.service.ts`, which this
+ * mirrors). Six of them so `SpendBarList`'s by-store truncation (past four
+ * rows) has something real to fold away, not just the top four.
+ */
+const stores = ["Trader Joe's", "Whole Foods", "Safeway", "Costco", "Kroger", "Target"];
+
+type DemoPurchase = {
+  ingredient: string;
+  price: number;
+  quantity: number | null;
+  store: string;
+  monthsAgo: number;
+  day: number;
+};
+
+const purchase = (
+  ingredient: string,
+  price: number,
+  quantity: number | null,
+  store: string,
+  monthsAgo: number,
+  day: number
+): DemoPurchase => ({ ingredient, price, quantity, store, monthsAgo, day });
+
+/**
+ * Six months (`monthsAgo: 0` is the current month), enough for the trend
+ * chart to have real bars under every preset from "This month" through
+ * "6 mo". Ingredients span all seven categories already in the `ingredients`
+ * table above, so `byCategory` truncates past five rows the same way
+ * `byStore` does past four.
+ */
+const purchases: DemoPurchase[] = [
+  // This month
+  purchase("chicken thighs", 14.5, 2, "Trader Joe's", 0, 2),
+  purchase("salmon", 23.8, 2, "Whole Foods", 0, 3),
+  purchase("olive oil", 8.99, 1, "Trader Joe's", 0, 5),
+  purchase("milk", 4.99, 2, "Trader Joe's", 0, 5),
+  purchase("red lentils", 3.49, 1, "Trader Joe's", 0, 8),
+  purchase("sourdough bread", 4.49, 1, "Trader Joe's", 0, 10),
+  purchase("beef mince", 12.6, 2, "Costco", 0, 11),
+  purchase("parmesan", 6.5, 1, "Whole Foods", 0, 14),
+  // 1 month ago
+  purchase("chicken thighs", 13.9, 2, "Safeway", 1, 3),
+  purchase("tofu", 3.2, 1, "Trader Joe's", 1, 4),
+  purchase("basmati rice", 5.4, 1, "Costco", 1, 6),
+  purchase("cheddar", 5.99, 1, "Trader Joe's", 1, 9),
+  purchase("avocado", 4.5, 3, "Whole Foods", 1, 12),
+  purchase("eggs", 4.29, 1, "Trader Joe's", 1, 16),
+  // 2 months ago
+  purchase("salmon", 21.4, 2, "Whole Foods", 2, 2),
+  purchase("garlic", 1.99, 1, "Trader Joe's", 2, 5),
+  purchase("tortillas", 3.5, 1, "Safeway", 2, 7),
+  purchase("black beans", 1.79, 2, "Trader Joe's", 2, 10),
+  purchase("mozzarella", 5.49, 1, "Whole Foods", 2, 13),
+  purchase("bacon", 6.99, 1, "Kroger", 2, 18),
+  // 3 months ago
+  purchase("chicken thighs", 15.1, 2, "Trader Joe's", 3, 3),
+  purchase("prawns", 11.25, 1, "Whole Foods", 3, 6),
+  purchase("flour", 3.1, 1, "Trader Joe's", 3, 8),
+  purchase("butter", 4.6, 1, "Trader Joe's", 3, 11),
+  purchase("tomatoes", 2.99, 2, "Safeway", 3, 15),
+  purchase("banana", 1.49, 3, "Target", 3, 19),
+  // 4 months ago
+  purchase("beef mince", 11.9, 2, "Costco", 4, 2),
+  purchase("mushrooms", 3.79, 1, "Whole Foods", 4, 5),
+  purchase("spring onions", 1.5, 1, "Trader Joe's", 4, 9),
+  purchase("yoghurt", 4.2, 1, "Trader Joe's", 4, 12),
+  purchase("bell pepper", 2.99, 2, "Safeway", 4, 17),
+  // 5 months ago
+  purchase("chicken thighs", 14.2, 2, "Trader Joe's", 5, 4),
+  purchase("cucumber", 1.29, 2, "Trader Joe's", 5, 7),
+  purchase("feta", 4.99, 1, "Whole Foods", 5, 10),
+  purchase("olives", 3.99, 1, "Costco", 5, 14),
+  purchase("apples", 3.5, 4, "Kroger", 5, 20),
+];
 
 function requireEnv() {
   if (process.env.NODE_ENV === "production") {
@@ -776,15 +888,17 @@ function requireEnv() {
  * they are global and other households' recipes may reference them.
  */
 async function clean(prisma: PrismaClient) {
-  const [staplesDeleted, recipesDeleted, listsDeleted] = [
+  const [staplesDeleted, recipesDeleted, listsDeleted, purchasesDeleted] = [
     await prisma.stapleReminder.deleteMany({ where: { id: { startsWith: DEMO_PREFIX } } }),
     await prisma.recipe.deleteMany({ where: { id: { startsWith: DEMO_PREFIX } } }),
     await prisma.groceryList.deleteMany({ where: { id: { startsWith: DEMO_PREFIX } } }),
+    await prisma.purchase.deleteMany({ where: { id: { startsWith: DEMO_PREFIX } } }),
   ];
   return {
     staples: staplesDeleted.count,
     recipes: recipesDeleted.count,
     lists: listsDeleted.count,
+    purchases: purchasesDeleted.count,
   };
 }
 
@@ -798,7 +912,7 @@ async function main() {
   if (CLEAN_ONLY) {
     const removed = await clean(prisma);
     console.log(
-      `Removed ${removed.recipes} demo recipes, ${removed.staples} staples and ${removed.lists} grocery lists. Ingredients left in place.`
+      `Removed ${removed.recipes} demo recipes, ${removed.staples} staples, ${removed.lists} grocery lists and ${removed.purchases} purchases. Ingredients and stores left in place.`
     );
     await prisma.$disconnect();
     return;
@@ -888,7 +1002,10 @@ async function main() {
         clerkOrgId: actor.clerkOrgId,
         ingredientId: resolve(ingredientIds, staple.ingredient, "ingredient"),
         frequencyDays: staple.frequencyDays,
-        lastAddedAt: null,
+        lastAddedAt:
+          staple.lastAddedDaysAgo === undefined
+            ? null
+            : new Date(now - staple.lastAddedDaysAgo * DAY_MS),
       },
     });
   }
@@ -951,22 +1068,66 @@ async function main() {
             source: "manual",
             checked: true,
           },
+          // Backs the "freshly stocked staple" demo — see the `staples`
+          // fixture above. `updatedAt` is set explicitly to 3 days ago so
+          // `getFreshlyStockedStaples` reads it as "checked off recently,"
+          // not "checked off just now by this script running."
+          {
+            ingredientId: resolve(ingredientIds, "bread", "ingredient"),
+            unitId: resolve(unitIds, "piece", "unit"),
+            quantity: 2,
+            source: "manual",
+            checked: true,
+            createdAt: new Date(now - 3 * DAY_MS),
+            updatedAt: new Date(now - 3 * DAY_MS),
+          },
         ],
       },
     },
   });
 
+  // Stores are global, upserted by name — same reasoning as ingredients above.
+  for (const storeName of stores) {
+    await prisma.store.upsert({ where: { name: storeName }, create: { name: storeName }, update: {} });
+  }
+  const storeIds = new Map(
+    (await prisma.store.findMany({ where: { name: { in: stores } }, select: { id: true, name: true } })).map(
+      (row) => [row.name, row.id]
+    )
+  );
+
+  const today = new Date();
+  for (const [index, entry] of purchases.entries()) {
+    await prisma.purchase.create({
+      data: {
+        id: `${DEMO_PREFIX}purchase-${index}`,
+        clerkOrgId: actor.clerkOrgId,
+        userId: user.id,
+        ingredientId: resolve(ingredientIds, entry.ingredient, "ingredient"),
+        storeId: resolve(storeIds, entry.store, "store"),
+        price: entry.price,
+        quantity: entry.quantity,
+        purchasedAt: new Date(today.getFullYear(), today.getMonth() - entry.monthsAgo, entry.day),
+      },
+    });
+  }
+
   const flour = list.items.find((item) => item.ingredient.name === "flour");
   console.log(
     [
-      `Seeded ${recipes.length} recipes (${favorites.length} favorited), ${staples.length} staples`,
-      `and 2 grocery lists for org ${actor.clerkOrgId}.`,
+      `Seeded ${recipes.length} recipes (${favorites.length} favorited), ${staples.length} staples,`,
+      `2 grocery lists and ${purchases.length} purchases across 6 months for org ${actor.clerkOrgId}.`,
       "",
       `Active list has ${list.items.length} lines. Cross-family check — flour:`,
       `  quantity=${flour?.quantity ?? "null"} unit=${flour?.unit?.name ?? "null"}`,
       flour && flour.quantity === null
         ? "  ✓ correct: cups + grams cannot be summed, so the line keeps no number."
         : "  ✗ expected a single unitless flour line — check lib/units.ts.",
+      "",
+      "Freshly-stocked staple check: add \"Peanut Butter & Jelly Sandwich\" via",
+      "Add from recipes — bread should land pre-checked as \"Already have it\"",
+      "(checked off 3 days ago, inside its 7-day frequency) while peanut",
+      "butter and jelly still need buying.",
     ].join("\n")
   );
 

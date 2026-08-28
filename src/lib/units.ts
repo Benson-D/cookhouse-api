@@ -63,24 +63,10 @@ function round(value: number, places = 3): number {
 }
 
 /**
- * Collapses lines into one per ingredient.
- *
- * The surviving line keeps the unit of the *first quantified* occurrence, so
- * a list built from a recipe written in cups reads in cups rather than in
- * millilitres.
- *
- * A line with no quantity (a staple reminder, a "salt to taste" recipe entry)
- * has nothing to contribute and is skipped rather than treated as a
- * disagreement — it never blocks the other lines' amounts from summing. The
- * quantity is dropped only when two or more lines *do* have real amounts that
- * don't share a unit family (2 cups flour + 500g flour) — that's a genuine
- * conflict, not a gap, so the line keeps the ingredient and drops both
- * quantity and unit: "flour", with no number, which is what a shopping list
- * can honestly say when the recipes disagree on how to measure it. If no line
- * has a quantity at all, the result is the same bare ingredient, for the same
- * reason — there was never a number to show.
- *
- * Input order is preserved.
+ * Collapses lines into one per ingredient, keeping the first quantified
+ * line's unit. A quantity-less line contributes nothing; the quantity is
+ * dropped only when two or more lines have real amounts in different unit
+ * families. Input order is preserved.
  */
 export function mergeLines<T>(lines: MergeLine<T>[]): MergedLine<T>[] {
   const groups = new Map<string, MergeLine<T>[]>();
