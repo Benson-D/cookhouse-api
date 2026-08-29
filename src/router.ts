@@ -8,6 +8,7 @@ import { unitsRouter } from "./modules/units/units.router.js";
 import { receiptsRouter } from "./modules/receipts/receipts.router.js";
 import { spendingRouter } from "./modules/spending/spending.router.js";
 import { staplesRouter } from "./modules/staples/staples.router.js";
+import { storesRouter } from "./modules/stores/stores.router.js";
 
 export const appRouter = router({
   /** Unauthenticated liveness check. */
@@ -22,6 +23,7 @@ export const appRouter = router({
   receipts: receiptsRouter,
   spending: spendingRouter,
   staples: staplesRouter,
+  stores: storesRouter,
 });
 
 export type AppRouter = typeof appRouter;
