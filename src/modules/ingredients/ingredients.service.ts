@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { escapeLikeWildcards } from "../../lib/search.js";
 
 /**
  * Ingredients are a single global list shared by every household — see
@@ -7,11 +8,17 @@ import type { PrismaClient } from "@prisma/client";
  * are deliberately not scoped by `clerkOrgId`.
  */
 
-/** Ingredients matching `search` (case-insensitive), or all of them. */
-export function list(prisma: PrismaClient, search?: string) {
+/**
+ * Ingredients matching `search` (case-insensitive), or all of them.
+ * `take` is capped so a client can't request an unbounded page — mirrors
+ * `recipes.list`.
+ */
+export function list(prisma: PrismaClient, search: string | undefined, take: number) {
+  const term = search?.trim();
   return prisma.ingredient.findMany({
-    where: search ? { name: { contains: search, mode: "insensitive" } } : undefined,
+    where: term ? { name: { contains: escapeLikeWildcards(term), mode: "insensitive" } } : undefined,
     orderBy: { name: "asc" },
+    take,
   });
 }
 
