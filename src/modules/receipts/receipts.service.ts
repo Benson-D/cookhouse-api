@@ -13,6 +13,7 @@ import {
   ensureWebSafeImage,
   isAllowedImageType,
   keyBelongsToHouseholdReceipts,
+  MAX_UPLOAD_BYTES,
 } from "../../lib/storage.js";
 import { analyzeReceipt } from "../../lib/textract.js";
 import type { ConfirmPurchasesInput } from "./receipts.input.js";
@@ -38,6 +39,7 @@ type Actor = { clerkOrgId: string; clerkUserId: string };
 export async function createUpload(
   prisma: PrismaClient,
   contentType: string,
+  contentLength: number,
   actor: Actor
 ) {
   if (!isAllowedImageType(contentType)) {
@@ -46,9 +48,18 @@ export async function createUpload(
       message: `Unsupported image type: ${contentType}`,
     });
   }
+  if (contentLength > MAX_UPLOAD_BYTES) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Image is too large (max ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB)`,
+    });
+  }
 
   const storageKey = buildReceiptImageKey(actor.clerkOrgId, contentType);
-  return { storageKey, uploadUrl: await createUploadUrl(storageKey, contentType) };
+  return {
+    storageKey,
+    uploadUrl: await createUploadUrl(storageKey, contentType, contentLength),
+  };
 }
 
 /**

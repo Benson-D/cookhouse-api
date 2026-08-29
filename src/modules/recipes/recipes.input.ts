@@ -38,7 +38,7 @@ export const updateRecipeInput = createRecipeInput.partial().extend({
  */
 export const listRecipesInput = z
   .object({
-    search: z.string().optional(),
+    search: z.string().max(100).optional(),
     tagIds: z.array(z.string()).optional(),
     maxCookingTime: z.number().int().positive().optional(),
     favoritesOnly: z.boolean().optional(),
@@ -52,10 +52,15 @@ export const setFavoriteInput = z.object({
   favorited: z.boolean(),
 });
 
-/** Content type is declared up front so the presigned URL can pin it. */
+/**
+ * Content type and size are declared up front so the presigned URL can pin
+ * both. `contentLength`'s own upper bound is a courtesy — the real cap is
+ * `MAX_UPLOAD_BYTES`, enforced in the service against a shared constant.
+ */
 export const createImageUploadInput = z.object({
   recipeId: z.string(),
   contentType: z.string(),
+  contentLength: z.number().int().positive(),
 });
 
 export const attachImageInput = z.object({

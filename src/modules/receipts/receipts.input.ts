@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const createReceiptUploadInput = z.object({
   contentType: z.string(),
+  contentLength: z.number().int().positive(),
 });
 
 export const scanReceiptInput = z.object({

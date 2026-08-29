@@ -24,6 +24,9 @@ import { convertHeicToJpeg, isHeic } from "./heic.js";
 const UPLOAD_URL_TTL_SECONDS = 60 * 5;
 const DOWNLOAD_URL_TTL_SECONDS = 60 * 60;
 
+/** Generous cap for one photo — real phone photos rarely get close to this even before HEIC conversion. */
+export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+
 /** Content types accepted for photo uploads, mapped to their extension. */
 const IMAGE_EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -154,8 +157,17 @@ export function bucketName(): string {
   return storage().config.bucket;
 }
 
-/** Presigned PUT the client uploads to directly. Short-lived by design. */
-export function createUploadUrl(key: string, contentType: string) {
+/**
+ * Presigned PUT the client uploads to directly. Short-lived by design.
+ *
+ * Signs `ContentLength` along with the key and type, so S3 checks the
+ * actual upload's size against it — a client can't request a URL for a
+ * small file and then send more bytes than declared. Not yet verified
+ * against a real bucket (see `cookhouse-api/CLAUDE.md`'s Storage section);
+ * the caller-side cap (`MAX_UPLOAD_BYTES`, checked before this is ever
+ * called) is the layer that's certain to hold regardless.
+ */
+export function createUploadUrl(key: string, contentType: string, contentLength: number) {
   const { client, config } = storage();
   return getSignedUrl(
     client,
@@ -163,6 +175,7 @@ export function createUploadUrl(key: string, contentType: string) {
       Bucket: config.bucket,
       Key: key,
       ContentType: contentType,
+      ContentLength: contentLength,
     }),
     { expiresIn: UPLOAD_URL_TTL_SECONDS }
   );
