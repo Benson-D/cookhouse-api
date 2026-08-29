@@ -1,6 +1,5 @@
 import { TRPCError } from "@trpc/server";
 import type { PrismaClient } from "@prisma/client";
-import { assertCanModify } from "../../lib/access.js";
 import {
   buildRecipeImageKey,
   createReadUrl,
@@ -9,45 +8,46 @@ import {
   ensureWebSafeImage,
   isAllowedImageType,
   keyBelongsToRecipe,
+  MAX_UPLOAD_BYTES,
 } from "../../lib/storage.js";
 
 type Actor = { clerkOrgId: string; clerkUserId: string };
 
-/** Photos are part of the recipe, so changing them needs author-or-admin. */
-async function assertCanEditRecipe(
+/**
+ * Viewing and editing a recipe's photos both require the same thing: the
+ * recipe belongs to the caller's household. Used by every function below,
+ * including the read path — `recipes.images` had no household check at all
+ * before this, unlike every other recipe procedure.
+ */
+async function assertRecipeInHousehold(
   prisma: PrismaClient,
   recipeId: string,
   actor: Actor
 ) {
   const recipe = await prisma.recipe.findUnique({
     where: { id: recipeId },
-    select: { clerkOrgId: true, createdBy: true },
+    select: { clerkOrgId: true },
   });
-  await assertCanModify(prisma, recipe, actor);
+  if (!recipe || recipe.clerkOrgId !== actor.clerkOrgId) {
+    throw new TRPCError({ code: "NOT_FOUND" });
+  }
 }
 
 /**
- * Issues a presigned PUT for one recipe photo.
+ * Issues a presigned PUT for one recipe photo. Permission is checked here,
+ * before the URL exists — it's a bearer credential for writing that object.
  *
- * Permission is checked *here*, before the URL exists — once issued, the URL
- * is a bearer credential for writing that object, so it must never be handed
- * to someone who could not edit the recipe.
- *
- * Writes nothing. The client uploads to the returned URL, then calls `attach`
- * with the key. An upload that is never attached leaves an orphan object in
- * the bucket; a lifecycle rule on the `recipes/` prefix is the intended
- * cleanup, since this server never learns the upload happened.
- *
- * Throws BAD_REQUEST for an unsupported content type, NOT_FOUND if the recipe
- * is missing or another household's, FORBIDDEN if the actor cannot edit it.
+ * Throws BAD_REQUEST for an unsupported content type or an oversized file,
+ * NOT_FOUND if the recipe is missing or belongs to another household.
  */
 export async function createUpload(
   prisma: PrismaClient,
   recipeId: string,
   contentType: string,
+  contentLength: number,
   actor: Actor
 ) {
-  await assertCanEditRecipe(prisma, recipeId, actor);
+  await assertRecipeInHousehold(prisma, recipeId, actor);
 
   if (!isAllowedImageType(contentType)) {
     throw new TRPCError({
@@ -55,33 +55,31 @@ export async function createUpload(
       message: `Unsupported image type: ${contentType}`,
     });
   }
+  if (contentLength > MAX_UPLOAD_BYTES) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Image is too large (max ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB)`,
+    });
+  }
 
   const storageKey = buildRecipeImageKey(actor.clerkOrgId, recipeId, contentType);
-  return { storageKey, uploadUrl: await createUploadUrl(storageKey, contentType) };
+  return {
+    storageKey,
+    uploadUrl: await createUploadUrl(storageKey, contentType, contentLength),
+  };
 }
 
 /**
- * Records an uploaded object against the recipe.
- *
- * The key is re-checked against the household + recipe prefix rather than
- * trusted, so a caller cannot attach an object belonging to another recipe or
- * another household by passing its key.
- *
- * Runs `ensureWebSafeImage` before recording anything — if the upload turns
- * out to actually be HEIC (regardless of what it was labeled; iOS Safari can
- * report a real HEIC file as image/jpeg), it's converted to JPEG and
- * re-stored first. Without this, a recipe photo taken straight from an
- * iPhone would look fine to the person who uploaded it (Safari can render
- * HEIC) and show as a broken image to everyone else in the household on any
- * other browser. `ensureWebSafeImage`'s replaced extension still matches this
- * recipe's key prefix, so the belongs-to-recipe check below still holds for
- * the returned key.
+ * Records an uploaded object against the recipe, converting it via
+ * `ensureWebSafeImage` first if it's actually HEIC. Its replaced extension
+ * still matches this recipe's key prefix, so the belongs-to-recipe check
+ * below still holds for the returned key.
  *
  * New images sort to the end; the first image (sortOrder 0) is the thumbnail.
  *
  * Writes: RecipeImage.
- * Throws NOT_FOUND / FORBIDDEN as `createUpload`, CONFLICT if the key is
- * already attached.
+ * Throws NOT_FOUND as `createUpload`, CONFLICT if the key is already
+ * attached.
  */
 export async function attach(
   prisma: PrismaClient,
@@ -90,7 +88,7 @@ export async function attach(
   caption: string | undefined,
   actor: Actor
 ) {
-  await assertCanEditRecipe(prisma, recipeId, actor);
+  await assertRecipeInHousehold(prisma, recipeId, actor);
 
   if (!keyBelongsToRecipe(storageKey, actor.clerkOrgId, recipeId)) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Key does not belong to recipe" });
@@ -131,7 +129,7 @@ export async function remove(prisma: PrismaClient, imageId: string, actor: Actor
   if (!image) {
     throw new TRPCError({ code: "NOT_FOUND" });
   }
-  await assertCanEditRecipe(prisma, image.recipeId, actor);
+  await assertRecipeInHousehold(prisma, image.recipeId, actor);
 
   await prisma.recipeImage.delete({ where: { id: imageId } });
   await deleteObject(image.storageKey).catch(() => {
@@ -155,7 +153,7 @@ export async function reorder(
   imageIds: string[],
   actor: Actor
 ) {
-  await assertCanEditRecipe(prisma, recipeId, actor);
+  await assertRecipeInHousehold(prisma, recipeId, actor);
 
   const current = await prisma.recipeImage.findMany({
     where: { recipeId },
@@ -189,8 +187,14 @@ export async function reorder(
  *
  * URLs are generated per call rather than stored: presigned reads expire, and
  * a stored URL would rot if the bucket or CDN host ever changes.
+ *
+ * Throws NOT_FOUND if the recipe is missing or belongs to another household —
+ * without this, any signed-in user could read another household's recipe
+ * photos by passing its recipe id directly.
  */
-export async function listWithUrls(prisma: PrismaClient, recipeId: string) {
+export async function listWithUrls(prisma: PrismaClient, recipeId: string, actor: Actor) {
+  await assertRecipeInHousehold(prisma, recipeId, actor);
+
   const images = await prisma.recipeImage.findMany({
     where: { recipeId },
     orderBy: { sortOrder: "asc" },

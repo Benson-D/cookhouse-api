@@ -29,12 +29,10 @@ export const recipesRouter = router({
     .input(createRecipeInput)
     .mutation(({ ctx, input }) => recipes.create(ctx.prisma, input, ctx)),
 
-  /** Author or admin only. */
   update: householdProcedure
     .input(updateRecipeInput)
     .mutation(({ ctx, input }) => recipes.update(ctx.prisma, input, ctx)),
 
-  /** Author or admin only. */
   delete: householdProcedure
     .input(byId)
     .mutation(({ ctx, input }) => recipes.remove(ctx.prisma, input.id, ctx)),
@@ -49,7 +47,7 @@ export const recipesRouter = router({
   /** Images with render URLs, thumbnail first. */
   images: householdProcedure
     .input(byId)
-    .query(({ ctx, input }) => images.listWithUrls(ctx.prisma, input.id)),
+    .query(({ ctx, input }) => images.listWithUrls(ctx.prisma, input.id, ctx)),
 
   /**
    * Step 1 of upload: returns a presigned PUT the client sends bytes to.
@@ -58,7 +56,7 @@ export const recipesRouter = router({
   createImageUpload: householdProcedure
     .input(createImageUploadInput)
     .mutation(({ ctx, input }) =>
-      images.createUpload(ctx.prisma, input.recipeId, input.contentType, ctx)
+      images.createUpload(ctx.prisma, input.recipeId, input.contentType, input.contentLength, ctx)
     ),
 
   /** Step 2 of upload: record the uploaded object against the recipe. */

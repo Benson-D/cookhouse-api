@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { assertCanModify } from "../../lib/access.js";
+import { escapeLikeWildcards } from "../../lib/search.js";
 import { getOrSync } from "../users/users.service.js";
 import type {
   CreateRecipeInput,
@@ -102,7 +102,9 @@ export async function listForHousehold(
 
   const where: Prisma.RecipeWhereInput = {
     clerkOrgId: actor.clerkOrgId,
-    ...(search && { name: { contains: search, mode: "insensitive" } }),
+    ...(search?.trim() && {
+      name: { contains: escapeLikeWildcards(search.trim()), mode: "insensitive" },
+    }),
     ...(maxCookingTime && { cookingTime: { lte: maxCookingTime } }),
     ...(tagIds?.length && { tags: { some: { tagId: { in: tagIds } } } }),
     ...(favoritesOnly && { favoritedBy: { some: { userId: user.id } } }),
@@ -194,8 +196,8 @@ export function create(
  * Writes: Recipe, and RecipeIngredient / RecipeTag when those keys are given.
  * The clear and re-create run in one transaction, so a failure rolls back
  * rather than leaving a recipe stripped of its ingredients.
- * Throws NOT_FOUND if the recipe is missing or owned by another household,
- * FORBIDDEN if the actor is neither its author nor an admin.
+ * Throws NOT_FOUND if the recipe is missing or owned by another household —
+ * any member of that household may edit, authorship is not checked.
  */
 export async function update(
   prisma: PrismaClient,
@@ -206,9 +208,11 @@ export async function update(
 
   const existing = await prisma.recipe.findUnique({
     where: { id },
-    select: { clerkOrgId: true, createdBy: true },
+    select: { clerkOrgId: true },
   });
-  await assertCanModify(prisma, existing, actor);
+  if (!existing || existing.clerkOrgId !== actor.clerkOrgId) {
+    throw new TRPCError({ code: "NOT_FOUND" });
+  }
 
   return prisma.$transaction(async (tx) => {
     if (ingredients) {
@@ -238,15 +242,17 @@ export async function update(
  * Writes: Recipe, cascading to RecipeIngredient, RecipeTag and
  * UserFavoriteRecipe — those rows are meaningless without their parent.
  * Purchase history is unaffected: it hangs off Ingredient, not Recipe.
- * Throws NOT_FOUND if the recipe is missing or owned by another household,
- * FORBIDDEN if the actor is neither its author nor an admin.
+ * Throws NOT_FOUND if the recipe is missing or owned by another household —
+ * any member of that household may delete, authorship is not checked.
  */
 export async function remove(prisma: PrismaClient, id: string, actor: Actor) {
   const existing = await prisma.recipe.findUnique({
     where: { id },
-    select: { clerkOrgId: true, createdBy: true },
+    select: { clerkOrgId: true },
   });
-  await assertCanModify(prisma, existing, actor);
+  if (!existing || existing.clerkOrgId !== actor.clerkOrgId) {
+    throw new TRPCError({ code: "NOT_FOUND" });
+  }
 
   await prisma.recipe.delete({ where: { id } });
   return { ok: true };
