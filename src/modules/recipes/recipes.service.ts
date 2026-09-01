@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { escapeLikeWildcards } from "../../lib/search.js";
+import { createReadUrl } from "../../lib/storage.js";
 import { getOrSync } from "../users/users.service.js";
 import type {
   CreateRecipeInput,
@@ -12,6 +13,7 @@ type Actor = { clerkOrgId: string; clerkUserId: string };
 
 const summaryInclude = {
   tags: { include: { tag: true } },
+  images: { orderBy: { sortOrder: "asc" }, take: 1 },
 } satisfies Prisma.RecipeInclude;
 
 const detailInclude = {
@@ -21,23 +23,26 @@ const detailInclude = {
 } satisfies Prisma.RecipeInclude;
 
 /**
- * Return shapes are named rather than left to inference, for one concrete
- * reason: the `AppRouter` type crosses the workspace boundary, and the web app
- * resolves it with `inferRouterOutputs`.
- *
- * Two things break that walk if left alone. `Recipe.instructions` is Prisma
- * `Json`, and `JsonValue` is *recursive* — tRPC traverses output types to work
- * out what serializes, and that recursion tips the frontend into TS2589
- * ("excessively deep"). Spreading a deeply-included payload to bolt on
- * `isFavorited` compounds it. So the column is re-typed as `unknown` at the API
- * boundary — honest, since it's unstructured by design and every client parses
- * it defensively — and the flag is added as an intersection rather than a
- * spread.
+ * Return shapes are named, not inferred, because `AppRouter` crosses the
+ * package boundary and the frontend resolves it via `inferRouterOutputs`.
+ * `Recipe.instructions` is a recursive `Json` type that trips TS2589
+ * ("excessively deep") during that walk — worse once `isFavorited` is
+ * bolted on. Fixed by re-typing `instructions` as `unknown` at the boundary
+ * (honest, since it's unstructured and parsed defensively anyway) and
+ * adding `isFavorited` as an intersection, not a spread.
  */
 type OpaqueInstructions<T> = Omit<T, "instructions"> & { instructions: unknown };
 
+/**
+ * `images` (raw storage keys) is replaced with `coverImageUrl` — a recipe
+ * card renders a URL, not a key it has no way to resolve itself, and
+ * `RecipeImage.storageKey` is never handed to a client directly (see root
+ * CLAUDE.md's domain rules).
+ */
 type RecipeSummaryRow = OpaqueInstructions<
-  Prisma.RecipeGetPayload<{ include: typeof summaryInclude }>
+  Omit<Prisma.RecipeGetPayload<{ include: typeof summaryInclude }>, "images"> & {
+    coverImageUrl: string | null;
+  }
 >;
 type RecipeDetailRow = OpaqueInstructions<
   Prisma.RecipeGetPayload<{ include: typeof detailInclude }>
@@ -78,8 +83,11 @@ async function withIsFavorited<T extends { id: string }>(
  * A page of the household's recipes, newest first, with the total matching
  * count so the client can paginate.
  *
- * Summary shape only — tags but no ingredient rows, since a list view doesn't
- * render them and joining them across a page is wasted work.
+ * Summary shape only — tags and one cover image but no ingredient rows,
+ * since a list view doesn't render those and joining them across a page is
+ * wasted work. The cover image is `sortOrder: 0` (`take: 1` on an
+ * ascending sort), turned into a presigned read URL the same way
+ * `recipe-images.service.ts`'s `listWithUrls` does for the detail view.
  *
  * Every row carries `isFavorited` for the caller, so the local `User` row is
  * resolved on every call rather than only for `favoritesOnly` (favorites are
@@ -121,8 +129,16 @@ export async function listForHousehold(
     prisma.recipe.count({ where }),
   ]);
 
+  // Only a key is stored — this turns it into a real presigned URL.
+  const withCoverImages = await Promise.all(
+    recipes.map(async ({ images, ...recipe }) => ({
+      ...recipe,
+      coverImageUrl: images[0] ? await createReadUrl(images[0].storageKey) : null,
+    }))
+  );
+
   return {
-    recipes: await withIsFavorited(prisma, recipes, user.id),
+    recipes: await withIsFavorited(prisma, withCoverImages, user.id),
     total,
     skip,
     take,
