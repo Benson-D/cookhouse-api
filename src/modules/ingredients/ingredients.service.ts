@@ -32,14 +32,15 @@ export function list(prisma: PrismaClient, search: string | undefined, take: num
  * changing that function's already-relied-upon behavior.
  */
 export async function findExisting(prisma: PrismaClient, name: string) {
+  const normalized = name.trim().toLowerCase();
   const alias = await prisma.ingredientAlias.findFirst({
-    where: { aliasText: { equals: name, mode: "insensitive" } },
+    where: { aliasText: { equals: normalized, mode: "insensitive" } },
     include: { ingredient: true },
   });
   if (alias) {
     return alias.ingredient;
   }
-  return prisma.ingredient.findFirst({ where: { name: { equals: name, mode: "insensitive" } } });
+  return prisma.ingredient.findFirst({ where: { name: { equals: normalized, mode: "insensitive" } } });
 }
 
 /**
@@ -48,6 +49,12 @@ export async function findExisting(prisma: PrismaClient, name: string) {
  * Checks `IngredientAlias` first, so messy text already mapped to a canonical
  * row ("ORG MLK 2%" → "milk") reuses it instead of creating a near-duplicate.
  * Falls back to an exact name match, then to creating a fresh ingredient.
+ *
+ * Stores `name` lowercased (matching every seeded ingredient already in the
+ * table) — the upsert below targets `Ingredient.name`'s unique constraint
+ * directly, which can't be matched case-insensitively the way a plain
+ * lookup can, so "Tomatoes" would otherwise create a second row alongside
+ * an existing "tomatoes" instead of resolving to it.
  *
  * Writes: Ingredient (only when the name is genuinely new).
  * Never throws on an existing name — concurrent callers converge on one row
@@ -58,8 +65,10 @@ export async function findOrCreate(
   name: string,
   category?: string
 ) {
+  const normalized = name.trim().toLowerCase();
+
   const alias = await prisma.ingredientAlias.findFirst({
-    where: { aliasText: { equals: name, mode: "insensitive" } },
+    where: { aliasText: { equals: normalized, mode: "insensitive" } },
     include: { ingredient: true },
   });
   if (alias) {
@@ -67,8 +76,8 @@ export async function findOrCreate(
   }
 
   return prisma.ingredient.upsert({
-    where: { name },
-    create: { name, category },
+    where: { name: normalized },
+    create: { name: normalized, category },
     update: {},
   });
 }
