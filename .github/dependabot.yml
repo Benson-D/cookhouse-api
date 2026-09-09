@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    ignore:
+      # zod is what the frontend pins its own version to match (AppRouter's
+      # type inference crosses the package boundary) — a major bump here
+      # would silently break that on the other side, so never auto-propose it.
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
