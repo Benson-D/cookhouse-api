@@ -119,6 +119,7 @@ async function applyDueStaples(
     return;
   }
 
+  // Skip staples already on the list — avoids duplicating them on repeat opens.
   const present = await prisma.groceryListItem.findMany({
     where: { listId, ingredientId: { in: due.map((s) => s.ingredientId) } },
     select: { ingredientId: true },
@@ -126,6 +127,7 @@ async function applyDueStaples(
   const alreadyOnList = new Set(present.map((item) => item.ingredientId));
   const toAdd = due.filter((staple) => !alreadyOnList.has(staple.ingredientId));
 
+  // Add the new staple rows and reset the reminder clock, together.
   await prisma.$transaction([
     ...toAdd.map((staple) =>
       prisma.groceryListItem.create({
@@ -216,9 +218,9 @@ async function mergeIntoList(
 /**
  * The household's current list, created on first access.
  *
- * Exactly one list is active per household at a time; that invariant lives
- * here rather than in the schema, since expressing it in Postgres needs a
- * partial unique index that Prisma can't declare.
+ * This is what enforces "exactly one active list per household" — every
+ * caller gets the active list through here, which finds one or creates it,
+ * rather than ever creating one directly.
  *
  * Writes: GroceryList (first access), plus anything applyDueStaples adds.
  */
@@ -229,6 +231,7 @@ export async function getActive(prisma: PrismaClient, actor: Actor) {
     select: { id: true },
   });
 
+  // No active list yet — create a new, empty one.
   const listId =
     existing?.id ??
     (await prisma.groceryList.create({ data: { clerkOrgId: actor.clerkOrgId } }))
