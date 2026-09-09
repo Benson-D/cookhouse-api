@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import type { PrismaClient } from "@prisma/client";
 import { clerkClient } from "../../lib/clerk.js";
+import { notifyNewUser } from "../../lib/email.js";
 
 /**
  * Returns the local `User` row for a Clerk identity, creating it on first
@@ -38,7 +39,7 @@ export async function getOrSync(prisma: PrismaClient, clerkUserId: string) {
 
   // upsert, not create: two concurrent first requests would otherwise race and
   // one would fail the unique constraint on clerkUserId.
-  return prisma.user.upsert({
+  const user = await prisma.user.upsert({
     where: { clerkUserId },
     create: {
       clerkUserId,
@@ -49,4 +50,12 @@ export async function getOrSync(prisma: PrismaClient, clerkUserId: string) {
     },
     update: {},
   });
+
+  // Fire-and-forget — must never block a real sign-in. `existing` was null
+  // above, so this really is a new user.
+  notifyNewUser(email).catch((error) => {
+    console.error("Failed to send new-user notification:", error);
+  });
+
+  return user;
 }
