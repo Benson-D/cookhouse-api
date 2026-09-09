@@ -14,8 +14,7 @@ client can hit the same API without a later extraction.
 ## Status
 
 Backend and frontend are both built for recipes, grocery lists, staple
-management, image upload, receipt scanning, and spending reports. Recipe URL
-import is the only feature with a backend and no frontend consumer yet.
+management, image upload, receipt scanning, and spending reports.
 
 ## Tech stack
 
@@ -30,7 +29,10 @@ import is the only feature with a backend and no frontend consumer yet.
 - **AWS Textract** (`AnalyzeExpense`) for receipt OCR, run synchronously
   inline in a mutation rather than queued
 - **Zod** for input validation, with types inferred rather than hand-written
-- **Vitest** for pure `lib/*` functions and input schemas
+- **Vitest** for pure `lib/*` functions, input schemas, and stubbed-Prisma
+  service tests (`vitest-mock-extended`)
+- **`rate-limiter-flexible`**, plus `helmet`/`morgan`, for per-user rate
+  limiting and baseline request security/logging
 
 ## Architecture
 
