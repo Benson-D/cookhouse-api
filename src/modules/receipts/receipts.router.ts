@@ -5,10 +5,8 @@ import * as receipts from "./receipts.service.js";
 
 const byId = z.object({ id: z.string() });
 
-// Textract charges per call, unlike the rest of this router — 20/hour is
-// generous for real shopping (nobody scans 20 receipts in an hour) but
-// bounds the cost of a buggy or malicious client hammering this specific
-// procedure well below what the baseline limit alone would allow.
+// Textract charges per call — 20/hour is generous for real shopping but caps
+// the cost of abuse well below the baseline limit alone.
 const scanRateLimit = strictRateLimit("receipts.scan", 20, 60 * 60);
 
 export const receiptsRouter = router({
