@@ -28,7 +28,11 @@ jobs:
           registry-url: "https://npm.pkg.github.com"
           scope: "@benson-d"
 
+      # prisma generate (via postinstall) only needs this to be a parseable
+      # URL — it never connects. No real database is involved in a type build.
       - run: pnpm install --frozen-lockfile
+        env:
+          DIRECT_URL: "postgresql://user:pass@localhost:5432/db"
 
       - run: pnpm build:contract
 
