@@ -1,0 +1,41 @@
+name: Publish contract
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "contract/**"
+      - "prisma/schema.prisma"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@benson-d"
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build:contract
+
+      # 0.1.<run number> — every push to main gets a new, always-increasing
+      # patch version, so the frontend picks it up on its next install with
+      # no manual version bump.
+      - run: npm version "0.1.${{ github.run_number }}" --no-git-tag-version
+        working-directory: contract
+
+      - run: npm publish
+        working-directory: contract
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
