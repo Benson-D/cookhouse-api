@@ -42,7 +42,9 @@ jobs:
       - run: npm version "0.1.${{ github.run_number }}" --no-git-tag-version
         working-directory: contract
 
+      # contract/.npmrc (committed, for local dev auth) takes precedence over
+      # the one actions/setup-node generates, and reads this variable name.
       - run: npm publish
         working-directory: contract
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
