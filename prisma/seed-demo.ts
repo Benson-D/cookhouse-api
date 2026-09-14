@@ -156,7 +156,7 @@ const recipes: DemoRecipe[] = [
     lines: [
       line("spaghetti", 400, "gram"),
       line("pancetta", 150, "gram", "diced"),
-      line("eggs", 4, "piece"),
+      line("eggs", 4, null),
       line("parmesan", 50, "gram", "finely grated"),
       line("black pepper", null, null, "to taste"),
     ],
@@ -178,7 +178,7 @@ const recipes: DemoRecipe[] = [
     lines: [
       line("flour", 2, "cup"),
       line("milk", 300, "milliliter"),
-      line("eggs", 2, "piece"),
+      line("eggs", 2, null),
       line("butter", 50, "gram", "melted"),
       line("sugar", 2, "tablespoon"),
     ],
@@ -222,7 +222,7 @@ const recipes: DemoRecipe[] = [
       line("coconut milk", 400, "milliliter"),
       line("red curry paste", 3, "tablespoon"),
       line("basmati rice", 300, "gram"),
-      line("garlic", 3, "piece", "crushed"),
+      line("garlic", 3, null, "crushed"),
     ],
     steps: [
       { text: "Fry the curry paste in a little oil until fragrant." },
@@ -241,8 +241,8 @@ const recipes: DemoRecipe[] = [
     tags: ["mexican", "dinner"],
     lines: [
       line("beef mince", 500, "gram"),
-      line("tortillas", 8, "piece"),
-      line("onion", 1, "piece", "finely chopped"),
+      line("tortillas", 8, null),
+      line("onion", 1, null, "finely chopped"),
       line("cumin", 2, "teaspoon"),
       line("smoked paprika", 1, "teaspoon"),
       line("cheddar", 100, "gram", "grated"),
@@ -263,9 +263,9 @@ const recipes: DemoRecipe[] = [
     tags: ["mexican", "vegan", "vegetarian", "dinner", "dairy-free"],
     lines: [
       line("black beans", 400, "gram", "drained"),
-      line("tortillas", 8, "piece"),
-      line("avocado", 2, "piece"),
-      line("lime", 1, "piece"),
+      line("tortillas", 8, null),
+      line("avocado", 2, null),
+      line("lime", 1, null),
       line("coriander", null, null, "a large handful"),
       line("cumin", 2, "teaspoon"),
     ],
@@ -288,7 +288,7 @@ const recipes: DemoRecipe[] = [
       line("egg noodles", 250, "gram"),
       line("soy sauce", 3, "tablespoon"),
       line("ginger", 30, "gram", "julienned"),
-      line("spring onions", 4, "piece"),
+      line("spring onions", 4, null),
       line("sesame oil", 1, "tablespoon"),
     ],
     steps: [
@@ -308,9 +308,9 @@ const recipes: DemoRecipe[] = [
     lines: [
       line("tofu", 400, "gram", "cubed"),
       line("soy sauce", 2, "tablespoon"),
-      line("garlic", 3, "piece"),
+      line("garlic", 3, null),
       line("ginger", 20, "gram"),
-      line("spring onions", 3, "piece"),
+      line("spring onions", 3, null),
       line("basmati rice", 250, "gram"),
     ],
     steps: [
@@ -329,7 +329,7 @@ const recipes: DemoRecipe[] = [
     tags: ["japanese", "dinner", "dairy-free"],
     favorite: true,
     lines: [
-      line("salmon", 2, "piece", "skin on"),
+      line("salmon", 2, null, "skin on"),
       line("soy sauce", 4, "tablespoon"),
       line("honey", 2, "tablespoon"),
       line("ginger", 15, "gram"),
@@ -350,7 +350,7 @@ const recipes: DemoRecipe[] = [
     cookingTime: 5,
     tags: ["japanese", "side", "vegan", "vegetarian", "gluten-free", "dairy-free"],
     lines: [
-      line("cucumber", 2, "piece", "sliced paper thin"),
+      line("cucumber", 2, null, "sliced paper thin"),
       line("rice vinegar", 4, "tablespoon"),
       line("sugar", 1, "tablespoon"),
       line("salt", 1, "teaspoon"),
@@ -370,8 +370,8 @@ const recipes: DemoRecipe[] = [
     tags: ["indian", "vegan", "vegetarian", "dinner", "gluten-free", "dairy-free"],
     lines: [
       line("red lentils", 300, "gram"),
-      line("onion", 1, "piece"),
-      line("garlic", 4, "piece"),
+      line("onion", 1, null),
+      line("garlic", 4, null),
       line("curry powder", 2, "tablespoon"),
       line("tomatoes", 400, "gram", "tinned"),
       line("spinach", 100, "gram"),
@@ -394,8 +394,8 @@ const recipes: DemoRecipe[] = [
       line("chicken thighs", 800, "gram"),
       line("yoghurt", 300, "gram"),
       line("curry powder", 3, "tablespoon"),
-      line("garlic", 4, "piece"),
-      line("lemon", 1, "piece"),
+      line("garlic", 4, null),
+      line("lemon", 1, null),
       line("basmati rice", 300, "gram"),
     ],
     steps: [
@@ -437,7 +437,7 @@ const recipes: DemoRecipe[] = [
       line("basil", 100, "gram"),
       line("pine nuts", 50, "gram", "toasted"),
       line("parmesan", 60, "gram"),
-      line("garlic", 1, "piece"),
+      line("garlic", 1, null),
       line("olive oil", 150, "milliliter"),
     ],
     steps: [
@@ -454,7 +454,7 @@ const recipes: DemoRecipe[] = [
     cookingTime: 60,
     tags: ["italian", "vegetarian", "dinner"],
     lines: [
-      line("aubergine", 3, "piece", "sliced"),
+      line("aubergine", 3, null, "sliced"),
       line("tomatoes", 800, "gram", "tinned"),
       line("mozzarella", 250, "gram"),
       line("parmesan", 80, "gram"),
@@ -477,7 +477,7 @@ const recipes: DemoRecipe[] = [
     tags: ["mediterranean", "vegetarian", "side", "gluten-free"],
     lines: [
       line("tomatoes", 500, "gram", "ripe"),
-      line("cucumber", 1, "piece"),
+      line("cucumber", 1, null),
       line("feta", 200, "gram"),
       line("olives", 100, "gram"),
       line("olive oil", 4, "tablespoon"),
@@ -498,8 +498,8 @@ const recipes: DemoRecipe[] = [
     lines: [
       line("chickpeas", 400, "gram"),
       line("tahini", 120, "gram"),
-      line("lemon", 2, "piece"),
-      line("garlic", 2, "piece"),
+      line("lemon", 2, null),
+      line("garlic", 2, null),
       line("olive oil", 3, "tablespoon"),
     ],
     steps: [
@@ -517,10 +517,10 @@ const recipes: DemoRecipe[] = [
     tags: ["mediterranean", "vegetarian", "breakfast", "gluten-free"],
     favorite: true,
     lines: [
-      line("eggs", 6, "piece"),
+      line("eggs", 6, null),
       line("tomatoes", 800, "gram", "tinned"),
-      line("bell pepper", 2, "piece"),
-      line("onion", 1, "piece"),
+      line("bell pepper", 2, null),
+      line("onion", 1, null),
       line("cumin", 2, "teaspoon"),
       line("smoked paprika", 1, "teaspoon"),
     ],
@@ -540,10 +540,10 @@ const recipes: DemoRecipe[] = [
     tags: ["italian", "vegetarian", "dinner", "gluten-free"],
     lines: [
       line("mushrooms", 400, "gram", "mixed"),
-      line("onion", 1, "piece"),
+      line("onion", 1, null),
       line("parmesan", 80, "gram"),
       line("butter", 60, "gram"),
-      line("garlic", 2, "piece"),
+      line("garlic", 2, null),
     ],
     steps: [
       { text: "Fry the mushrooms hard and set aside." },
@@ -560,11 +560,11 @@ const recipes: DemoRecipe[] = [
     cookingTime: 20,
     tags: ["american", "breakfast"],
     lines: [
-      line("bacon", 6, "piece"),
-      line("eggs", 4, "piece"),
-      line("tomatoes", 2, "piece", "halved"),
+      line("bacon", 6, null),
+      line("eggs", 4, null),
+      line("tomatoes", 2, null, "halved"),
       line("mushrooms", 150, "gram"),
-      line("sourdough bread", 4, "piece"),
+      line("sourdough bread", 4, null),
     ],
     steps: [
       { text: "Bacon first, and cook the rest in its fat." },
@@ -582,7 +582,7 @@ const recipes: DemoRecipe[] = [
     lines: [
       line("rolled oats", 100, "gram"),
       line("milk", 250, "milliliter"),
-      line("banana", 1, "piece"),
+      line("banana", 1, null),
       line("peanut butter", 2, "tablespoon"),
       line("honey", 1, "tablespoon"),
     ],
@@ -600,11 +600,11 @@ const recipes: DemoRecipe[] = [
     cookingTime: 55,
     tags: ["dessert", "vegetarian", "snack"],
     lines: [
-      line("banana", 3, "piece", "very ripe"),
+      line("banana", 3, null, "very ripe"),
       line("flour", 250, "gram"),
       line("sugar", 150, "gram"),
       line("butter", 120, "gram", "melted"),
-      line("eggs", 2, "piece"),
+      line("eggs", 2, null),
       line("baking powder", 2, "teaspoon"),
     ],
     steps: [
@@ -623,7 +623,7 @@ const recipes: DemoRecipe[] = [
     tags: ["dessert", "vegetarian", "gluten-free"],
     lines: [
       line("dark chocolate", 200, "gram"),
-      line("eggs", 4, "piece", "separated"),
+      line("eggs", 4, null, "separated"),
       line("double cream", 200, "milliliter"),
       line("sugar", 50, "gram"),
       line("vanilla extract", 1, "teaspoon"),
@@ -644,7 +644,7 @@ const recipes: DemoRecipe[] = [
     tags: ["dessert", "vegetarian", "american"],
     lines: [
       line("puff pastry", 320, "gram"),
-      line("apples", 4, "piece", "sliced thin"),
+      line("apples", 4, null, "sliced thin"),
       line("sugar", 60, "gram"),
       line("butter", 40, "gram"),
       line("cinnamon", 1, "teaspoon"),
@@ -666,8 +666,8 @@ const recipes: DemoRecipe[] = [
     lines: [
       line("prawns", 300, "gram"),
       line("egg noodles", 200, "gram"),
-      line("garlic", 4, "piece"),
-      line("lime", 1, "piece"),
+      line("garlic", 4, null),
+      line("lime", 1, null),
       line("coriander", null, null),
       line("sesame oil", 1, "tablespoon"),
     ],
@@ -686,8 +686,8 @@ const recipes: DemoRecipe[] = [
     cookingTime: 5,
     tags: ["lunch", "vegetarian", "vegan", "dairy-free"],
     lines: [
-      line("avocado", 1, "piece"),
-      line("sourdough bread", 2, "piece"),
+      line("avocado", 1, null),
+      line("sourdough bread", 2, null),
       line("lemon", null, null, "a squeeze"),
       line("olive oil", 1, "tablespoon"),
       line("salt", null, null, "flaky"),
@@ -708,7 +708,7 @@ const recipes: DemoRecipe[] = [
     lines: [
       line("potatoes", 1.5, "kilogram"),
       line("olive oil", 100, "milliliter"),
-      line("garlic", 6, "piece", "unpeeled"),
+      line("garlic", 6, null, "unpeeled"),
       line("salt", null, null),
     ],
     steps: [
@@ -747,7 +747,7 @@ const recipes: DemoRecipe[] = [
     cookingTime: 0,
     tags: ["lunch", "snack"],
     lines: [
-      line("bread", 2, "piece"),
+      line("bread", 2, null),
       line("peanut butter", 2, "tablespoon"),
       line("jelly", 1, "tablespoon"),
     ],
@@ -1074,7 +1074,7 @@ async function main() {
           // not "checked off just now by this script running."
           {
             ingredientId: resolve(ingredientIds, "bread", "ingredient"),
-            unitId: resolve(unitIds, "piece", "unit"),
+            unitId: null,
             quantity: 2,
             source: "manual",
             checked: true,

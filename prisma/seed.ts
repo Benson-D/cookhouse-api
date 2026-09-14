@@ -12,11 +12,14 @@ import "dotenv/config";
  * `conversionFactor` into it, which is what lib/units.ts needs to merge
  * grocery-list lines. Volume and weight stay separate families on purpose:
  * converting between them needs per-ingredient density we deliberately don't model.
+ *
+ * No "count" unit (a "piece"/"dozen" family) — a whole-item quantity like
+ * "3 onions" just carries no unit at all. lib/units.ts already treats two
+ * unitless lines as mergeable, so nothing needs a formal unit to represent it.
  */
 
 const VOLUME_BASE = "milliliter";
 const WEIGHT_BASE = "gram";
-const COUNT_BASE = "piece";
 
 const units: Array<{
   name: string;
@@ -40,9 +43,6 @@ const units: Array<{
   { name: "kilogram", abbreviation: "kg", type: "weight", factor: 1000 },
   { name: "ounce", abbreviation: "oz", type: "weight", factor: 28.3495 },
   { name: "pound", abbreviation: "lb", type: "weight", factor: 453.592 },
-
-  { name: COUNT_BASE, abbreviation: null, type: "count", factor: 1 },
-  { name: "dozen", abbreviation: "doz", type: "count", factor: 12 },
 ];
 
 const tags: Array<{ name: string; type: string }> = [
@@ -65,7 +65,7 @@ async function main() {
 
   // Base units first — the rest reference them via baseUnitId.
   const bases = new Map<string, string>();
-  for (const name of [VOLUME_BASE, WEIGHT_BASE, COUNT_BASE]) {
+  for (const name of [VOLUME_BASE, WEIGHT_BASE]) {
     const unit = units.find((u) => u.name === name)!;
     const row = await prisma.measurementUnit.upsert({
       where: { name: unit.name },
@@ -81,7 +81,7 @@ async function main() {
   }
 
   for (const unit of units.filter((u) => u.factor !== 1 || !bases.has(u.type))) {
-    if (unit.name === VOLUME_BASE || unit.name === WEIGHT_BASE || unit.name === COUNT_BASE) {
+    if (unit.name === VOLUME_BASE || unit.name === WEIGHT_BASE) {
       continue;
     }
     await prisma.measurementUnit.upsert({
