@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # prisma generate (via postinstall) only needs this to be a parseable
+      # URL — it never connects. No real database is involved in these checks.
+      - run: pnpm install --frozen-lockfile
+        env:
+          DIRECT_URL: "postgresql://user:pass@localhost:5432/db"
+
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test
