@@ -4,7 +4,7 @@ import jpeg from "jpeg-js";
 // wasm-bundle over the plain "wasm" entry: it embeds the .wasm binary
 // directly instead of loading it relative to process.cwd(), which broke
 // depending on where the server was launched from.
-import libheif from "libheif-js/wasm-bundle";
+import libheif from "libheif-js/wasm-bundle.js";
 
 type HeifImage = {
   get_width(): number;
