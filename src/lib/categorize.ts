@@ -70,7 +70,7 @@ const CATEGORIES: Record<string, string[]> = {
     "swiss cheese", "provolone", "monterey jack", "pepper jack",
     "string cheese", "cream cheese", "heavy cream", "kefir", "custard",
     "creme fraiche", "blue cheese", "gruyere", "camembert", "asiago",
-    "condensed milk", "evaporated milk",
+    "condensed milk", "evaporated milk", "yakult", "probiotic drink",
   ],
   meat: [
     "chicken", "beef", "pork", "turkey", "lamb", "bacon", "sausage", "ham",
@@ -89,7 +89,7 @@ const CATEGORIES: Record<string, string[]> = {
     "cereal", "oat", "oats", "honey", "syrup", "jam", "jelly", "nut butter",
     "tofu", "tahini", "quinoa", "breadcrumb", "stuffing", "gravy", "ketchup",
     "mustard", "mayonnaise", "mayo", "salsa", "cocoa", "yeast", "cornstarch",
-    "coconut", "dried fruit", "pickle", "olive",
+    "coconut", "dried fruit", "pickle", "olive", "couscous",
   ],
   spices: [
     "salt", "black pepper", "cumin", "paprika", "turmeric", "cinnamon",
@@ -114,7 +114,8 @@ const CATEGORIES: Record<string, string[]> = {
   ],
   beverages: [
     "water", "soda", "juice", "coffee", "tea", "kombucha", "beer", "wine",
-    "sparkling water", "lemonade", "energy drink", "cider",
+    "sparkling water", "lemonade", "energy drink", "cider", "coke", "cola",
+    "sprite", "rc", "dr pepper", "pepsi",
   ],
   desserts: [
     "chocolate", "cookie", "cake", "brownie", "candy", "pie", "pudding",
