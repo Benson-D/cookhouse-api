@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { categorize } from "../../lib/categorize.js";
 import { escapeLikeWildcards } from "../../lib/search.js";
 
 /**
@@ -75,9 +76,13 @@ export async function findOrCreate(
     return alias.ingredient;
   }
 
+  // Only guessed on creation — an existing ingredient's category is never
+  // silently overwritten by a later, possibly-worse guess.
+  const resolvedCategory = category ?? categorize(normalized) ?? undefined;
+
   return prisma.ingredient.upsert({
     where: { name: normalized },
-    create: { name: normalized, category },
+    create: { name: normalized, category: resolvedCategory },
     update: {},
   });
 }
