@@ -45,6 +45,9 @@ const OVERRIDES: Array<{ phrase: string; category: string }> = [
   { phrase: "fennel seed", category: "spices" },
   { phrase: "mustard seed", category: "spices" },
   { phrase: "mustard powder", category: "spices" },
+  // Checked before pantry's bare "ranch" (dressing/dip), so the seasoning
+  // packet doesn't get misrouted there.
+  { phrase: "ranch seasoning", category: "spices" },
 ];
 
 const CATEGORIES: Record<string, string[]> = {
@@ -89,7 +92,7 @@ const CATEGORIES: Record<string, string[]> = {
     "cereal", "oat", "oats", "honey", "syrup", "jam", "jelly", "nut butter",
     "tofu", "tahini", "quinoa", "breadcrumb", "stuffing", "gravy", "ketchup",
     "mustard", "mayonnaise", "mayo", "salsa", "cocoa", "yeast", "cornstarch",
-    "coconut", "dried fruit", "pickle", "olive", "couscous",
+    "coconut", "dried fruit", "pickle", "olive", "couscous", "ranch",
   ],
   spices: [
     "salt", "black pepper", "cumin", "paprika", "turmeric", "cinnamon",
@@ -100,7 +103,7 @@ const CATEGORIES: Record<string, string[]> = {
     "red pepper flake", "cajun seasoning", "chili flake", "star anise",
     "five spice", "white pepper", "poultry seasoning", "taco seasoning",
     "everything bagel seasoning", "adobo seasoning", "seasoning salt",
-    "ranch seasoning", "sumac", "za'atar", "herbs de provence",
+    "sumac", "za'atar", "herbs de provence",
     "pumpkin spice", "chipotle powder", "onion flakes", "garlic flakes", "msg",
   ],
   frozen: [
@@ -128,7 +131,16 @@ function escapeRegExp(value: string): string {
 }
 
 /** Matches `keyword` as a whole word, allowing a trailing "s" or "es". */
+/**
+ * A trailing consonant + "y" pluralizes as "-ies" ("blueberry" ->
+ * "blueberries"), not a simple "+s"/"+es" suffix — "blueberrys" isn't a real
+ * word. Every other keyword just gets an optional "s"/"es" tacked on.
+ */
 function keywordPattern(keyword: string): RegExp {
+  if (/[^aeiou]y$/i.test(keyword)) {
+    const stem = escapeRegExp(keyword.slice(0, -1));
+    return new RegExp(`\\b${stem}(y|ies)\\b`, "i");
+  }
   return new RegExp(`\\b${escapeRegExp(keyword)}(e?s)?\\b`, "i");
 }
 

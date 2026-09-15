@@ -37,6 +37,19 @@ describe("categorize", () => {
     expect(categorize("mustard")).toBe("pantry");
   });
 
+  it("pluralizes a consonant + y keyword as -ies, not a simple +s suffix", () => {
+    expect(categorize("blueberry")).toBe("produce");
+    expect(categorize("blueberries")).toBe("produce");
+    expect(categorize("strawberries")).toBe("produce");
+    expect(categorize("cherries")).toBe("produce");
+    expect(categorize("candies")).toBe("desserts");
+  });
+
+  it("resolves ranch seasoning to spices, not pantry's bare ranch (dressing)", () => {
+    expect(categorize("ranch")).toBe("pantry");
+    expect(categorize("ranch seasoning")).toBe("spices");
+  });
+
   it("does not match a keyword mid-word", () => {
     // "oat" should not match inside "goat", nor "nut" inside "coconut".
     expect(categorize("goat cheese")).toBe("dairy");
