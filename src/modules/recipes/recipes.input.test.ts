@@ -14,6 +14,14 @@ describe("createRecipeInput", () => {
     expect(parsed.tagIds).toEqual([]);
   });
 
+  it("keeps a step's optional heading rather than stripping it", () => {
+    const parsed = createRecipeInput.parse({
+      ...minimal,
+      instructions: [{ step: 1, text: "Boil", heading: "Make the sauce" }],
+    });
+    expect(parsed.instructions[0].heading).toBe("Make the sauce");
+  });
+
   it("rejects a blank name", () => {
     expect(createRecipeInput.safeParse({ ...minimal, name: "" }).success).toBe(false);
   });

@@ -4,6 +4,7 @@ const recipeStepInput = z.object({
   step: z.number(),
   text: z.string(),
   timerSeconds: z.number().optional(),
+  heading: z.string().optional(),
 });
 
 const recipeIngredientInput = z.object({
