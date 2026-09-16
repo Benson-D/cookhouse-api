@@ -5,7 +5,7 @@ export const addFromRecipesInput = z.object({
 });
 
 export const addItemInput = z.object({
-  ingredientId: z.string(),
+  name: z.string().min(1),
   quantity: z.number().positive().optional(),
   unitId: z.string().optional(),
 });

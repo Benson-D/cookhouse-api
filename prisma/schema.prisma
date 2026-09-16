@@ -196,7 +196,8 @@ model GroceryList {
 model GroceryListItem {
   id           String   @id @default(cuid())
   listId       String
-  ingredientId String
+  ingredientId String?
+  label        String? // set instead of ingredientId when nothing matched
   unitId       String?
   quantity     Float?
   checked      Boolean  @default(false)
@@ -207,7 +208,7 @@ model GroceryListItem {
   updatedAt    DateTime @default(now()) @updatedAt
 
   list       GroceryList      @relation(fields: [listId], references: [id], onDelete: Cascade)
-  ingredient Ingredient       @relation(fields: [ingredientId], references: [id])
+  ingredient Ingredient?      @relation(fields: [ingredientId], references: [id])
   unit       MeasurementUnit? @relation(fields: [unitId], references: [id])
   addedBy    User?            @relation("AddedBy", fields: [addedById], references: [id])
   checkedBy  User?            @relation("CheckedBy", fields: [checkedById], references: [id])

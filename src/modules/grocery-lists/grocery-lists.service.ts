@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { mergeLines, type MergeLine, type UnitRef } from "../../lib/units.js";
 import { computeFreshlyStocked, DAY_MS } from "../../lib/staples.js";
 import { getOrSync } from "../users/users.service.js";
+import { findExisting } from "../ingredients/ingredients.service.js";
 import type { AddItemInput, HistoryInput } from "./grocery-lists.input.js";
 
 type Actor = { clerkOrgId: string; clerkUserId: string };
@@ -165,12 +166,16 @@ async function mergeIntoList(
     orderBy: { createdAt: "asc" },
   });
 
-  const existingLines: MergeLine<string | null>[] = current.map((item) => ({
-    ingredientId: item.ingredientId,
-    quantity: item.quantity,
-    unit: item.unit,
-    meta: item.id,
-  }));
+  // A label-only row has no ingredientId to merge on — it never participates
+  // in this computation at all, unlike every other row here.
+  const existingLines: MergeLine<string | null>[] = current
+    .filter((item): item is typeof item & { ingredientId: string } => item.ingredientId !== null)
+    .map((item) => ({
+      ingredientId: item.ingredientId,
+      quantity: item.quantity,
+      unit: item.unit,
+      meta: item.id,
+    }));
   const incomingLines: MergeLine<string | null>[] = incoming.map((line) => ({
     ...line,
     meta: null,
@@ -286,7 +291,9 @@ async function getFreshlyStockedStaples(
 
   const mostRecentByIngredient = new Map<string, Date>();
   for (const item of lastChecked) {
-    if (!mostRecentByIngredient.has(item.ingredientId)) {
+    // The where clause above only ever matches a real ingredientId — this is
+    // just satisfying the column's own nullable type.
+    if (item.ingredientId && !mostRecentByIngredient.has(item.ingredientId)) {
       mostRecentByIngredient.set(item.ingredientId, item.updatedAt);
     }
   }
@@ -355,10 +362,12 @@ export async function addFromRecipes(
 }
 
 /**
- * Adds one manually-entered item to the active list.
+ * Adds one manually-entered item to the active list, by typed name.
  *
- * Merges into the existing row if that ingredient is already listed, rather
- * than creating a second line for it.
+ * Looks up the name against existing ingredients (alias-aware, same lookup
+ * `findOrCreate` uses) but never creates a new one — a match merges into the
+ * existing row like any other ingredient; no match just stores the typed
+ * text as `label`, since there's nothing to canonicalize or merge it with.
  *
  * Writes: GroceryList (if none active), GroceryListItem, User (first request).
  * Throws NOT_FOUND if the unit id is unknown.
@@ -378,13 +387,28 @@ export async function addItem(
     throw new TRPCError({ code: "NOT_FOUND", message: "Unknown unit" });
   }
 
-  await mergeIntoList(
-    prisma,
-    list.id,
-    [{ ingredientId: input.ingredientId, quantity: input.quantity ?? null, unit }],
-    "manual",
-    user.id
-  );
+  const ingredient = await findExisting(prisma, input.name);
+
+  if (ingredient) {
+    await mergeIntoList(
+      prisma,
+      list.id,
+      [{ ingredientId: ingredient.id, quantity: input.quantity ?? null, unit }],
+      "manual",
+      user.id
+    );
+  } else {
+    await prisma.groceryListItem.create({
+      data: {
+        listId: list.id,
+        label: input.name.trim(),
+        unitId: unit?.id,
+        quantity: input.quantity ?? null,
+        source: "manual",
+        addedById: user.id,
+      },
+    });
+  }
 
   const updated = await prisma.groceryList.findUniqueOrThrow({
     where: { id: list.id },

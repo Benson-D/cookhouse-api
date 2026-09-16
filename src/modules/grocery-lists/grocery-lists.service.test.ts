@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockDeep, type DeepMockProxy } from "vitest-mock-extended";
 import type { PrismaClient } from "@prisma/client";
-import { removeItem, setChecked } from "./grocery-lists.service.js";
+import { addItem, removeItem, setChecked } from "./grocery-lists.service.js";
 
 const actor = { clerkOrgId: "org_mine", clerkUserId: "user_1" };
 
@@ -59,5 +59,42 @@ describe("removeItem", () => {
     } as never);
 
     await expect(removeItem(prisma, "i1", actor)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("addItem", () => {
+  beforeEach(() => {
+    prisma.groceryList.findFirst.mockResolvedValue({ id: "list1" } as never);
+    prisma.stapleReminder.findMany.mockResolvedValue([] as never);
+    prisma.groceryListItem.findMany.mockResolvedValue([] as never);
+    prisma.groceryList.findUniqueOrThrow.mockResolvedValue({ id: "list1", items: [] } as never);
+    prisma.$transaction.mockResolvedValue([{}] as never);
+  });
+
+  it("merges into the matching ingredient when the typed name resolves", async () => {
+    prisma.ingredientAlias.findFirst.mockResolvedValue(null);
+    prisma.ingredient.findFirst.mockResolvedValue({ id: "ing_milk", name: "milk" } as never);
+
+    await addItem(prisma, { name: "milk" }, actor);
+
+    expect(prisma.groceryListItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ ingredientId: "ing_milk" }) })
+    );
+  });
+
+  it("stores the typed text as a label when nothing matches", async () => {
+    prisma.ingredientAlias.findFirst.mockResolvedValue(null);
+    prisma.ingredient.findFirst.mockResolvedValue(null);
+
+    await addItem(prisma, { name: "soap" }, actor);
+
+    expect(prisma.groceryListItem.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        listId: "list1",
+        label: "soap",
+        source: "manual",
+        addedById: "local_1",
+      }),
+    });
   });
 });
