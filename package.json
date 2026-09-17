@@ -19,6 +19,7 @@
     "db:seed:demo:clean": "tsx prisma/seed-demo.ts --clean",
     "build:contract": "node contract/build.mjs",
     "backfill:categories": "tsx scripts/backfill-categories.ts",
+    "cleanup:remove-count-unit": "tsx scripts/remove-count-unit.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
