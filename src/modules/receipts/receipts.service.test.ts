@@ -11,7 +11,7 @@ vi.mock("../../lib/storage.js", async (importOriginal) => {
   };
 });
 
-const { getById, remove } = await import("./receipts.service.js");
+const { confirmPurchases, getById, remove } = await import("./receipts.service.js");
 
 const actor = { clerkOrgId: "org_mine", clerkUserId: "user_1" };
 
@@ -19,6 +19,73 @@ let prisma: DeepMockProxy<PrismaClient>;
 
 beforeEach(() => {
   prisma = mockDeep<PrismaClient>();
+});
+
+describe("confirmPurchases", () => {
+  beforeEach(() => {
+    prisma.receipt.findUnique.mockResolvedValue({ id: "rc1", clerkOrgId: "org_mine" } as never);
+    prisma.user.findUnique.mockResolvedValue({ id: "local_1" } as never);
+    prisma.purchase.create.mockResolvedValue({} as never);
+  });
+
+  it("uses the matching ingredient when the description resolves", async () => {
+    prisma.ingredientAlias.findFirst.mockResolvedValue(null);
+    prisma.ingredient.findFirst.mockResolvedValue({ id: "ing_milk", name: "milk" } as never);
+
+    await confirmPurchases(
+      prisma,
+      { receiptId: "rc1", items: [{ description: "milk", price: 3.5 }] },
+      actor
+    );
+
+    expect(prisma.purchase.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ ingredientId: "ing_milk", label: null }),
+      })
+    );
+    expect(prisma.ingredient.upsert).not.toHaveBeenCalled();
+  });
+
+  it("creates a real ingredient when categorize() confidently recognizes it", async () => {
+    prisma.ingredientAlias.findFirst.mockResolvedValue(null);
+    prisma.ingredient.findFirst.mockResolvedValue(null);
+    prisma.ingredient.upsert.mockResolvedValue({ id: "ing_new", name: "kombucha" } as never);
+
+    await confirmPurchases(
+      prisma,
+      { receiptId: "rc1", items: [{ description: "kombucha", price: 4 }] },
+      actor
+    );
+
+    expect(prisma.ingredient.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: { name: "kombucha", category: "beverages" },
+      })
+    );
+    expect(prisma.purchase.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ ingredientId: "ing_new", label: null }),
+      })
+    );
+  });
+
+  it("stores an unrecognized item as a label instead of inventing an ingredient", async () => {
+    prisma.ingredientAlias.findFirst.mockResolvedValue(null);
+    prisma.ingredient.findFirst.mockResolvedValue(null);
+
+    await confirmPurchases(
+      prisma,
+      { receiptId: "rc1", items: [{ description: "GV WHL MLK 2Z", price: 2 }] },
+      actor
+    );
+
+    expect(prisma.ingredient.upsert).not.toHaveBeenCalled();
+    expect(prisma.purchase.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ ingredientId: null, label: "GV WHL MLK 2Z" }),
+      })
+    );
+  });
 });
 
 describe("getById", () => {

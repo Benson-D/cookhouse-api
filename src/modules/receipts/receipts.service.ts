@@ -1,10 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import type { PrismaClient } from "@prisma/client";
 import { getOrSync } from "../users/users.service.js";
-import {
-  findExisting as findExistingIngredient,
-  findOrCreate as findOrCreateIngredient,
-} from "../ingredients/ingredients.service.js";
+import { findExisting as findExistingIngredient } from "../ingredients/ingredients.service.js";
+import { categorize } from "../../lib/categorize.js";
 import {
   buildReceiptImageKey,
   createReadUrl,
@@ -171,14 +169,43 @@ async function findOrCreateStore(prisma: PrismaClient, name: string) {
 }
 
 /**
+ * Resolves a scanned line's ingredient without ever inventing a fake one.
+ * Checks `IngredientAlias`/exact name first (same lookup a recipe uses), so
+ * messy receipt text ("ORG MLK 2%") converges on an existing `Ingredient`
+ * rather than spawning a near-duplicate. A miss only creates a new
+ * `Ingredient` when `categorize()` confidently recognizes it (food,
+ * household, alcohol — whatever it is, it's a real thing); anything it
+ * can't place — a brand name, garbled OCR — becomes a plain label instead,
+ * never a permanent row nobody asked for.
+ */
+async function resolvePurchaseItem(prisma: PrismaClient, description: string) {
+  const existing = await findExistingIngredient(prisma, description);
+  if (existing) {
+    return { ingredientId: existing.id, label: null };
+  }
+
+  const category = categorize(description);
+  if (category) {
+    // upsert, not create — two concurrent scans resolving the same new name
+    // converge on one row instead of colliding on the unique constraint.
+    const normalized = description.trim().toLowerCase();
+    const created = await prisma.ingredient.upsert({
+      where: { name: normalized },
+      create: { name: normalized, category },
+      update: {},
+    });
+    return { ingredientId: created.id, label: null };
+  }
+
+  return { ingredientId: null, label: description.trim() };
+}
+
+/**
  * Turns reviewed line items into `Purchase` rows — the step that actually
- * affects spending totals. Every item resolves its ingredient the same way
- * a recipe does: `ingredients.findOrCreate`, which checks `IngredientAlias`
- * first so messy receipt text ("ORG MLK 2%") converges on the same
- * `Ingredient` a recipe would use, rather than spawning a near-duplicate.
+ * affects spending totals.
  *
- * Writes: Store (if new), Ingredient (if genuinely new), Purchase (one per
- * item), Receipt.storeId.
+ * Writes: Store (if new), Ingredient (only when genuinely new and
+ * confidently categorized), Purchase (one per item), Receipt.storeId.
  * Throws NOT_FOUND if the receipt is missing or belongs to another household.
  */
 export async function confirmPurchases(
@@ -196,12 +223,13 @@ export async function confirmPurchases(
 
   const purchases = await Promise.all(
     input.items.map(async (item) => {
-      const ingredient = await findOrCreateIngredient(prisma, item.description);
+      const { ingredientId, label } = await resolvePurchaseItem(prisma, item.description);
       return prisma.purchase.create({
         data: {
           clerkOrgId: actor.clerkOrgId,
           userId: user.id,
-          ingredientId: ingredient.id,
+          ingredientId,
+          label,
           storeId: store?.id,
           receiptId: receipt.id,
           price: item.price,

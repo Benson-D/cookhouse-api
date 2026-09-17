@@ -85,7 +85,7 @@ export async function byCategory(
 
   const totals = new Map<string, number>();
   for (const purchase of purchases) {
-    const category = purchase.ingredient.category ?? "Uncategorized";
+    const category = purchase.ingredient?.category ?? "Uncategorized";
     totals.set(category, (totals.get(category) ?? 0) + purchase.price);
   }
 
@@ -185,18 +185,30 @@ export async function topItems(prisma: PrismaClient, input: TopItemsInput, actor
 
   const purchases = await prisma.purchase.findMany({
     where,
-    select: { price: true, ingredient: { select: { id: true, name: true } } },
+    select: { price: true, label: true, ingredient: { select: { id: true, name: true } } },
   });
 
-  const totals = new Map<string, { name: string; total: number; purchaseCount: number }>();
+  const totals = new Map<
+    string,
+    { ingredientId: string | null; name: string; total: number; purchaseCount: number }
+  >();
   for (const purchase of purchases) {
-    const existing = totals.get(purchase.ingredient.id);
+    // A label-only purchase has no ingredient to group by — its own label
+    // text stands in as the grouping key, so repeat purchases of the same
+    // unrecognized item (say, a store's own "soap" line) still total
+    // together. The key is only ever used to group; the real (possibly
+    // null) ingredientId is what actually gets returned.
+    const key = purchase.ingredient?.id ?? `label:${purchase.label}`;
+    const name = purchase.ingredient?.name ?? purchase.label ?? "Unknown";
+
+    const existing = totals.get(key);
     if (existing) {
       existing.total += purchase.price;
       existing.purchaseCount += 1;
     } else {
-      totals.set(purchase.ingredient.id, {
-        name: purchase.ingredient.name,
+      totals.set(key, {
+        ingredientId: purchase.ingredient?.id ?? null,
+        name,
         total: purchase.price,
         purchaseCount: 1,
       });
@@ -205,9 +217,6 @@ export async function topItems(prisma: PrismaClient, input: TopItemsInput, actor
 
   return {
     ...range,
-    items: [...totals.entries()]
-      .map(([ingredientId, value]) => ({ ingredientId, ...value }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, input.limit),
+    items: [...totals.values()].sort((a, b) => b.total - a.total).slice(0, input.limit),
   };
 }

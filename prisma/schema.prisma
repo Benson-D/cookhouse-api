@@ -273,7 +273,8 @@ model Purchase {
   id           String   @id @default(cuid())
   clerkOrgId   String
   userId       String
-  ingredientId String
+  ingredientId String?
+  label        String? // set instead of ingredientId when nothing matched
   unitId       String?
   storeId      String?
   receiptId    String? // null if manually entered
@@ -282,7 +283,7 @@ model Purchase {
   purchasedAt  DateTime @default(now())
 
   user       User             @relation(fields: [userId], references: [id])
-  ingredient Ingredient       @relation(fields: [ingredientId], references: [id])
+  ingredient Ingredient?      @relation(fields: [ingredientId], references: [id])
   unit       MeasurementUnit? @relation(fields: [unitId], references: [id])
   store      Store?           @relation(fields: [storeId], references: [id])
   receipt    Receipt?         @relation(fields: [receiptId], references: [id])
