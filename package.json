@@ -20,6 +20,7 @@
     "build:contract": "node contract/build.mjs",
     "backfill:categories": "tsx scripts/backfill-categories.ts",
     "cleanup:remove-count-unit": "tsx scripts/remove-count-unit.ts",
+    "seed:ingredients-from-dictionary": "tsx scripts/seed-ingredients-from-dictionary.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

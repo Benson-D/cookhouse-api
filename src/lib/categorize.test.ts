@@ -18,6 +18,27 @@ describe("categorize", () => {
     expect(categorize("hummus")).toBe(null);
   });
 
+  it("matches alcohol and household items", () => {
+    expect(categorize("beer")).toBe("alcohol");
+    expect(categorize("cabernet wine")).toBe("alcohol");
+    expect(categorize("dish soap")).toBe("household");
+    expect(categorize("paper towels")).toBe("household");
+  });
+
+  it("splits apple cider (beverages) from bare cider (alcohol)", () => {
+    expect(categorize("apple cider")).toBe("beverages");
+    expect(categorize("cider")).toBe("alcohol");
+  });
+
+  it("resolves hard seltzer to alcohol, not beverages' bare seltzer", () => {
+    expect(categorize("hard seltzer")).toBe("alcohol");
+    expect(categorize("seltzer water")).toBe("beverages");
+  });
+
+  it("does not miscategorize root beer as alcohol", () => {
+    expect(categorize("root beer")).toBe("beverages");
+  });
+
   it("resolves compound-phrase overrides before the generic keyword would", () => {
     expect(categorize("almond milk")).toBe("beverages");
     expect(categorize("oat milk")).toBe("beverages");

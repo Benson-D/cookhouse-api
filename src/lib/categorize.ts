@@ -12,7 +12,7 @@
  * "asparagus" or "hummus").
  */
 
-const OVERRIDES: Array<{ phrase: string; category: string }> = [
+export const OVERRIDES: Array<{ phrase: string; category: string }> = [
   { phrase: "almond milk", category: "beverages" },
   { phrase: "oat milk", category: "beverages" },
   { phrase: "soy milk", category: "beverages" },
@@ -59,9 +59,15 @@ const OVERRIDES: Array<{ phrase: string; category: string }> = [
   { phrase: "hot chocolate", category: "beverages" },
   { phrase: "ginger ale", category: "beverages" },
   { phrase: "pork rind", category: "snacks" },
+  // "Apple cider" reads as non-alcoholic; bare "cider" (hard cider) moved to
+  // alcohol below, and "hard seltzer" needs its own override for the same
+  // reason "ranch seasoning" does — beverages' bare "seltzer" would otherwise
+  // claim it.
+  { phrase: "apple cider", category: "beverages" },
+  { phrase: "hard seltzer", category: "alcohol" },
 ];
 
-const CATEGORIES: Record<string, string[]> = {
+export const CATEGORIES: Record<string, string[]> = {
   produce: [
     "banana", "apple", "orange", "grape", "strawberry", "blueberry", "raspberry",
     "blackberry", "melon", "watermelon", "cantaloupe", "pineapple", "mango",
@@ -121,7 +127,7 @@ const CATEGORIES: Record<string, string[]> = {
     "barley", "bulgur", "farro", "polenta", "cornmeal", "panko",
     "applesauce", "vegetable oil", "canola oil", "worcestershire sauce",
     "hot sauce", "bbq sauce", "teriyaki sauce", "hoisin sauce", "relish",
-    "caper",
+    "caper", "tamari",
   ],
   spices: [
     "salt", "black pepper", "cumin", "paprika", "turmeric", "cinnamon",
@@ -148,8 +154,8 @@ const CATEGORIES: Record<string, string[]> = {
     "chestnut", "gummy", "fruit snack",
   ],
   beverages: [
-    "water", "soda", "juice", "coffee", "tea", "kombucha", "beer", "wine",
-    "sparkling water", "lemonade", "energy drink", "cider", "coke", "cola",
+    "water", "soda", "juice", "coffee", "tea", "kombucha",
+    "sparkling water", "lemonade", "energy drink", "coke", "cola",
     "sprite", "rc", "dr pepper", "pepsi",
     "gatorade", "sports drink", "seltzer", "club soda", "tonic water",
     "root beer",
@@ -158,6 +164,18 @@ const CATEGORIES: Record<string, string[]> = {
     "chocolate", "cookie", "cake", "brownie", "candy", "pie", "pudding",
     "donut", "doughnut", "cupcake", "marshmallow", "sweet",
     "gelatin", "tart", "macaron", "fudge", "toffee", "caramel",
+  ],
+  alcohol: [
+    "beer", "wine", "cider", "vodka", "whiskey", "whisky", "rum", "tequila",
+    "gin", "brandy", "champagne", "prosecco", "sake", "mezcal", "bourbon",
+    "scotch", "ale", "lager", "stout", "ipa", "malt liquor", "liqueur",
+  ],
+  household: [
+    "soap", "detergent", "paper towel", "toilet paper", "shampoo",
+    "conditioner", "toothpaste", "deodorant", "dish soap",
+    "laundry detergent", "bleach", "trash bag", "paper plate", "napkin",
+    "tissue", "hand sanitizer", "sponge", "aluminum foil", "plastic wrap",
+    "ziploc bag", "lightbulb", "battery", "candle", "air freshener",
   ],
 };
 
