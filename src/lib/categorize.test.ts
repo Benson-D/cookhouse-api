@@ -27,6 +27,32 @@ describe("categorize", () => {
     expect(categorize("chicken broth")).toBe("pantry");
   });
 
+  it("resolves a jarred/preserved form to pantry, not the fresh-produce word it contains", () => {
+    expect(categorize("sun-dried tomatoes")).toBe("pantry");
+    expect(categorize("roasted red peppers")).toBe("pantry");
+    expect(categorize("split peas")).toBe("pantry");
+    expect(categorize("tomatoes")).toBe("produce");
+    expect(categorize("peas")).toBe("produce");
+  });
+
+  it("resolves a sauce/condiment to pantry, not the meat word it contains", () => {
+    expect(categorize("oyster sauce")).toBe("pantry");
+    expect(categorize("fish sauce")).toBe("pantry");
+    expect(categorize("oysters")).toBe("meat");
+    expect(categorize("fish")).toBe("meat");
+  });
+
+  it("resolves a spiced/prepared form to its own category, not the base word's", () => {
+    expect(categorize("ground ginger")).toBe("spices");
+    expect(categorize("celery salt")).toBe("spices");
+    expect(categorize("hot chocolate")).toBe("beverages");
+    expect(categorize("ginger ale")).toBe("beverages");
+    expect(categorize("pork rinds")).toBe("snacks");
+    expect(categorize("ginger")).toBe("produce");
+    expect(categorize("chocolate")).toBe("desserts");
+    expect(categorize("pork")).toBe("meat");
+  });
+
   it("resolves a seed/powder form to spices, not the produce or pantry word it contains", () => {
     expect(categorize("coriander seed")).toBe("spices");
     expect(categorize("fennel seed")).toBe("spices");

@@ -48,6 +48,17 @@ const OVERRIDES: Array<{ phrase: string; category: string }> = [
   // Checked before pantry's bare "ranch" (dressing/dip), so the seasoning
   // packet doesn't get misrouted there.
   { phrase: "ranch seasoning", category: "spices" },
+  // Jarred/preserved/bottled forms of an otherwise-fresh-produce word.
+  { phrase: "sun-dried tomato", category: "pantry" },
+  { phrase: "roasted red pepper", category: "pantry" },
+  { phrase: "split pea", category: "pantry" },
+  { phrase: "oyster sauce", category: "pantry" },
+  { phrase: "fish sauce", category: "pantry" },
+  { phrase: "ground ginger", category: "spices" },
+  { phrase: "celery salt", category: "spices" },
+  { phrase: "hot chocolate", category: "beverages" },
+  { phrase: "ginger ale", category: "beverages" },
+  { phrase: "pork rind", category: "snacks" },
 ];
 
 const CATEGORIES: Record<string, string[]> = {
@@ -65,6 +76,12 @@ const CATEGORIES: Record<string, string[]> = {
     "nectarine", "papaya", "guava", "pomegranate", "tangerine", "clementine",
     "grapefruit", "passion fruit", "star fruit", "honeydew", "dragon fruit",
     "parsnip", "turnip", "rutabaga", "brussels sprout", "fennel",
+    "mandarin", "blackcurrant", "redcurrant", "gooseberry", "boysenberry",
+    "persimmon", "plantain", "yam", "radicchio", "endive", "arugula",
+    "bok choy", "collard greens", "chard", "watercress", "jicama",
+    "kohlrabi", "chayote", "taro", "cassava", "horseradish", "poblano",
+    "serrano", "habanero", "lychee", "rambutan", "jackfruit", "quince",
+    "currant",
   ],
   dairy: [
     "milk", "cheese", "cheddar", "mozzarella", "parmesan", "feta", "brie",
@@ -74,6 +91,8 @@ const CATEGORIES: Record<string, string[]> = {
     "string cheese", "cream cheese", "heavy cream", "kefir", "custard",
     "creme fraiche", "blue cheese", "gruyere", "camembert", "asiago",
     "condensed milk", "evaporated milk", "yakult", "probiotic drink",
+    "mascarpone", "paneer", "halloumi", "queso fresco", "cotija",
+    "manchego", "quark", "labneh",
   ],
   meat: [
     "chicken", "beef", "pork", "turkey", "lamb", "bacon", "sausage", "ham",
@@ -81,10 +100,16 @@ const CATEGORIES: Record<string, string[]> = {
     "hot dog", "meatball", "veal", "duck",
     "fish", "salmon", "tuna", "shrimp", "prawn", "crab", "lobster", "cod",
     "tilapia", "scallop", "seafood", "anchovy", "sardine",
+    "chorizo", "bratwurst", "brisket", "rib", "venison", "bison", "rabbit",
+    "quail", "mussel", "clam", "oyster", "squid", "calamari", "octopus",
+    "trout", "mackerel", "halibut", "bass", "catfish", "snapper",
+    "mahi mahi",
   ],
   bakery: [
     "bread", "bagel", "tortilla", "roll", "bun", "baguette", "croissant",
     "muffin", "pita", "naan", "pastry", "pie crust", "biscuit",
+    "brioche", "ciabatta", "focaccia", "breadstick", "flatbread",
+    "pizza dough", "scone", "danish",
   ],
   pantry: [
     "rice", "pasta", "noodle", "flour", "sugar", "oil", "vinegar", "sauce",
@@ -93,6 +118,10 @@ const CATEGORIES: Record<string, string[]> = {
     "tofu", "tahini", "quinoa", "breadcrumb", "stuffing", "gravy", "ketchup",
     "mustard", "mayonnaise", "mayo", "salsa", "cocoa", "yeast", "cornstarch",
     "coconut", "dried fruit", "pickle", "olive", "couscous", "ranch",
+    "barley", "bulgur", "farro", "polenta", "cornmeal", "panko",
+    "applesauce", "vegetable oil", "canola oil", "worcestershire sauce",
+    "hot sauce", "bbq sauce", "teriyaki sauce", "hoisin sauce", "relish",
+    "caper",
   ],
   spices: [
     "salt", "black pepper", "cumin", "paprika", "turmeric", "cinnamon",
@@ -105,24 +134,30 @@ const CATEGORIES: Record<string, string[]> = {
     "everything bagel seasoning", "adobo seasoning", "seasoning salt",
     "sumac", "za'atar", "herbs de provence",
     "pumpkin spice", "chipotle powder", "onion flakes", "garlic flakes", "msg",
+    "peppercorn", "harissa", "gochugaru", "wasabi",
   ],
   frozen: [
     "frozen", "popsicle", "frozen pizza", "frozen vegetable", "frozen fruit",
     "frozen meal", "waffle", "fish stick",
+    "sorbet", "ice pop", "hash brown", "tater tot",
   ],
   snacks: [
     "chip", "pretzel", "popcorn", "cracker", "nut", "almond", "walnut",
     "pecan", "cashew", "pistachio", "hazelnut", "granola bar", "protein bar",
     "trail mix", "candy bar", "jerky", "rice cake",
+    "chestnut", "gummy", "fruit snack",
   ],
   beverages: [
     "water", "soda", "juice", "coffee", "tea", "kombucha", "beer", "wine",
     "sparkling water", "lemonade", "energy drink", "cider", "coke", "cola",
     "sprite", "rc", "dr pepper", "pepsi",
+    "gatorade", "sports drink", "seltzer", "club soda", "tonic water",
+    "root beer",
   ],
   desserts: [
     "chocolate", "cookie", "cake", "brownie", "candy", "pie", "pudding",
     "donut", "doughnut", "cupcake", "marshmallow", "sweet",
+    "gelatin", "tart", "macaron", "fudge", "toffee", "caramel",
   ],
 };
 
@@ -130,7 +165,6 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Matches `keyword` as a whole word, allowing a trailing "s" or "es". */
 /**
  * A trailing consonant + "y" pluralizes as "-ies" ("blueberry" ->
  * "blueberries"), not a simple "+s"/"+es" suffix — "blueberrys" isn't a real
