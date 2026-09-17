@@ -82,6 +82,21 @@ describe("addItem", () => {
     );
   });
 
+  it("sums to 2 when the same ingredient is added twice with no explicit quantity", async () => {
+    prisma.ingredientAlias.findFirst.mockResolvedValue(null);
+    prisma.ingredient.findFirst.mockResolvedValue({ id: "ing_cucumber", name: "cucumber" } as never);
+    prisma.groceryListItem.findMany.mockResolvedValue([
+      { id: "item1", ingredientId: "ing_cucumber", quantity: 1, unit: null },
+    ] as never);
+
+    await addItem(prisma, { name: "cucumber" }, actor);
+
+    expect(prisma.groceryListItem.update).toHaveBeenCalledWith({
+      where: { id: "item1" },
+      data: { quantity: 2, unitId: null },
+    });
+  });
+
   it("stores the typed text as a label when nothing matches", async () => {
     prisma.ingredientAlias.findFirst.mockResolvedValue(null);
     prisma.ingredient.findFirst.mockResolvedValue(null);

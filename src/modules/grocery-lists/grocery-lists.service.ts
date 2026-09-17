@@ -390,10 +390,11 @@ export async function addItem(
   const ingredient = await findExisting(prisma, input.name);
 
   if (ingredient) {
+    // Defaults to 1, not null — a null quantity never accumulates on merge.
     await mergeIntoList(
       prisma,
       list.id,
-      [{ ingredientId: ingredient.id, quantity: input.quantity ?? null, unit }],
+      [{ ingredientId: ingredient.id, quantity: input.quantity ?? 1, unit }],
       "manual",
       user.id
     );
