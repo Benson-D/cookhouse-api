@@ -163,9 +163,15 @@ export async function scan(prisma: PrismaClient, storageKey: string, actor: Acto
   };
 }
 
-/** Finds a store by name, creating it if new — global, like `Ingredient` (see schema.prisma). */
+/**
+ * Finds a store by name, creating it if new — global, like `Ingredient` (see
+ * schema.prisma). Stored uppercased, not lowercased like Ingredient — same
+ * reasoning either way: normalizing on write is what lets the exact-match
+ * upsert catch "Whole Foods" vs. "WHOLE FOODS" as one row instead of two.
+ */
 async function findOrCreateStore(prisma: PrismaClient, name: string) {
-  return prisma.store.upsert({ where: { name }, create: { name }, update: {} });
+  const normalized = name.trim().toUpperCase();
+  return prisma.store.upsert({ where: { name: normalized }, create: { name: normalized }, update: {} });
 }
 
 /**

@@ -86,6 +86,29 @@ describe("confirmPurchases", () => {
       })
     );
   });
+
+  it("upserts the store name uppercased, so casing variants converge on one row", async () => {
+    prisma.ingredientAlias.findFirst.mockResolvedValue(null);
+    prisma.ingredient.findFirst.mockResolvedValue({ id: "ing_milk", name: "milk" } as never);
+    prisma.store.upsert.mockResolvedValue({ id: "store1", name: "WHOLE FOODS MARKET" } as never);
+
+    await confirmPurchases(
+      prisma,
+      {
+        receiptId: "rc1",
+        storeName: "Whole Foods Market",
+        items: [{ description: "milk", price: 3.5 }],
+      },
+      actor
+    );
+
+    expect(prisma.store.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { name: "WHOLE FOODS MARKET" },
+        create: { name: "WHOLE FOODS MARKET" },
+      })
+    );
+  });
 });
 
 describe("getById", () => {

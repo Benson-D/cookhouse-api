@@ -21,6 +21,8 @@
     "backfill:categories": "tsx scripts/backfill-categories.ts",
     "cleanup:remove-count-unit": "tsx scripts/remove-count-unit.ts",
     "seed:ingredients-from-dictionary": "tsx scripts/seed-ingredients-from-dictionary.ts",
+    "stores:list": "tsx scripts/list-stores.ts",
+    "stores:merge": "tsx scripts/merge-store.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
