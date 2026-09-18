@@ -1,12 +1,24 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockDeep, type DeepMockProxy } from "vitest-mock-extended";
 import type { PrismaClient } from "@prisma/client";
-import { merge } from "./stores.service.js";
+import { merge, search } from "./stores.service.js";
 
 let prisma: DeepMockProxy<PrismaClient>;
 
 beforeEach(() => {
   prisma = mockDeep<PrismaClient>();
+});
+
+describe("search", () => {
+  it("selects only id and name, never the purchase/receipt counts", async () => {
+    prisma.store.findMany.mockResolvedValue([{ id: "s1", name: "COSTCO" }] as never);
+
+    await search(prisma, "cost", 30);
+
+    expect(prisma.store.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ select: { id: true, name: true } })
+    );
+  });
 });
 
 describe("merge", () => {
