@@ -54,7 +54,7 @@
     "@types/node": "^22.5.0",
     "@types/pg": "^8.11.10",
     "dts-bundle-generator": "^9.5.1",
-    "prisma": "^7.9.1",
+    "prisma": "^7.10.0",
     "tsx": "^4.23.13",
     "typescript": "^5.5.4",
     "vitest": "^4.1.11",
