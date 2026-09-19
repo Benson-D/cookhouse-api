@@ -23,6 +23,7 @@
     "seed:ingredients-from-dictionary": "tsx scripts/seed-ingredients-from-dictionary.ts",
     "stores:list": "tsx scripts/list-stores.ts",
     "stores:merge": "tsx scripts/merge-store.ts",
+    "seed:known-stores": "tsx scripts/seed-known-stores.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
