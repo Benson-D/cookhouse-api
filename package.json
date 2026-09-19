@@ -57,7 +57,7 @@
     "dts-bundle-generator": "^9.5.1",
     "prisma": "^7.9.1",
     "tsx": "^4.23.13",
-    "typescript": "^5.5.4",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11",
     "vitest-mock-extended": "^5.1.1"
   },
