@@ -419,6 +419,53 @@ export async function addItem(
 }
 
 /**
+ * Reconciles one confirmed purchase against the active list: checks off a
+ * matching row, or adds a new already-checked one if it wasn't on the list
+ * at all. Matching is exact only — by `ingredientId` when the purchase
+ * resolved to a real ingredient, by case-insensitive `label` text when it
+ * didn't (no fuzzy matching, same as every other matching step in this app).
+ *
+ * Never touches a row that's already checked — this can't overwrite a real
+ * person's own check-off with a system one.
+ *
+ * Writes: GroceryList (if none active), GroceryListItem.
+ */
+export async function checkOffPurchase(
+  prisma: PrismaClient,
+  actor: Actor,
+  purchase: { ingredientId: string | null; label: string | null; quantity: number | null }
+) {
+  const list = await getActive(prisma, actor);
+
+  const match = list.items.find((item) =>
+    purchase.ingredientId
+      ? item.ingredientId === purchase.ingredientId
+      : item.label?.toLowerCase() === purchase.label?.toLowerCase()
+  );
+
+  if (match) {
+    if (!match.checked) {
+      await prisma.groceryListItem.update({
+        where: { id: match.id },
+        data: { checked: true, checkedById: null },
+      });
+    }
+    return;
+  }
+
+  await prisma.groceryListItem.create({
+    data: {
+      listId: list.id,
+      ingredientId: purchase.ingredientId,
+      label: purchase.label,
+      quantity: purchase.quantity,
+      checked: true,
+      source: "receipt",
+    },
+  });
+}
+
+/**
  * Checks or unchecks an item, recording who did it.
  *
  * Writes: GroceryListItem (checked, checkedById), User (first request).

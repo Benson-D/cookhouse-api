@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import type { PrismaClient } from "@prisma/client";
 import { getOrSync } from "../users/users.service.js";
 import { findExisting as findExistingIngredient } from "../ingredients/ingredients.service.js";
+import { checkOffPurchase } from "../grocery-lists/grocery-lists.service.js";
 import { categorize } from "../../lib/categorize.js";
 import {
   buildReceiptImageKey,
@@ -208,10 +209,13 @@ async function resolvePurchaseItem(prisma: PrismaClient, description: string) {
 
 /**
  * Turns reviewed line items into `Purchase` rows — the step that actually
- * affects spending totals.
+ * affects spending totals. Also checks each item off the active grocery
+ * list (or adds it, already checked, if it wasn't there) — see
+ * grocery-lists.service.ts's checkOffPurchase for the matching rules.
  *
  * Writes: Store (if new), Ingredient (only when genuinely new and
- * confidently categorized), Purchase (one per item), Receipt.storeId.
+ * confidently categorized), Purchase (one per item), GroceryListItem
+ * (checked or created), Receipt.storeId.
  * Throws NOT_FOUND if the receipt is missing or belongs to another household.
  */
 export async function confirmPurchases(
@@ -227,24 +231,30 @@ export async function confirmPurchases(
   const user = await getOrSync(prisma, actor.clerkUserId);
   const store = input.storeName ? await findOrCreateStore(prisma, input.storeName) : null;
 
-  const purchases = await Promise.all(
-    input.items.map(async (item) => {
-      const { ingredientId, label } = await resolvePurchaseItem(prisma, item.description);
-      return prisma.purchase.create({
-        data: {
-          clerkOrgId: actor.clerkOrgId,
-          userId: user.id,
-          ingredientId,
-          label,
-          storeId: store?.id,
-          receiptId: receipt.id,
-          price: item.price,
-          quantity: item.quantity,
-          purchasedAt: input.purchasedAt ?? receipt.createdAt,
-        },
-      });
-    })
-  );
+  // Sequential, not Promise.all — avoids two identical line items on this
+  // one receipt racing each other into a double-created row. Doesn't fix
+  // the broader cross-request race (GroceryListItem has no unique
+  // constraint on listId+ingredientId — see root CLAUDE.md); that gap is
+  // unchanged by this.
+  const purchases = [];
+  for (const item of input.items) {
+    const { ingredientId, label } = await resolvePurchaseItem(prisma, item.description);
+    const purchase = await prisma.purchase.create({
+      data: {
+        clerkOrgId: actor.clerkOrgId,
+        userId: user.id,
+        ingredientId,
+        label,
+        storeId: store?.id,
+        receiptId: receipt.id,
+        price: item.price,
+        quantity: item.quantity,
+        purchasedAt: input.purchasedAt ?? receipt.createdAt,
+      },
+    });
+    purchases.push(purchase);
+    await checkOffPurchase(prisma, actor, { ingredientId, label, quantity: item.quantity ?? null });
+  }
 
   if (store) {
     await prisma.receipt.update({ where: { id: receipt.id }, data: { storeId: store.id } });

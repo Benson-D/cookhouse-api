@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockDeep, type DeepMockProxy } from "vitest-mock-extended";
 import type { PrismaClient } from "@prisma/client";
-import { addItem, removeItem, setChecked } from "./grocery-lists.service.js";
+import { addItem, checkOffPurchase, removeItem, setChecked } from "./grocery-lists.service.js";
 
 const actor = { clerkOrgId: "org_mine", clerkUserId: "user_1" };
 
@@ -10,6 +10,69 @@ let prisma: DeepMockProxy<PrismaClient>;
 beforeEach(() => {
   prisma = mockDeep<PrismaClient>();
   prisma.user.findUnique.mockResolvedValue({ id: "local_1", clerkUserId: "user_1" } as never);
+});
+
+describe("checkOffPurchase", () => {
+  beforeEach(() => {
+    prisma.groceryList.findFirst.mockResolvedValue({ id: "list1" } as never);
+    prisma.stapleReminder.findMany.mockResolvedValue([] as never);
+  });
+
+  it("checks off a matching, not-yet-checked ingredient row", async () => {
+    prisma.groceryList.findUniqueOrThrow.mockResolvedValue({
+      id: "list1",
+      items: [{ id: "item1", ingredientId: "ing_milk", label: null, checked: false }],
+    } as never);
+
+    await checkOffPurchase(prisma, actor, { ingredientId: "ing_milk", label: null, quantity: 1 });
+
+    expect(prisma.groceryListItem.update).toHaveBeenCalledWith({
+      where: { id: "item1" },
+      data: { checked: true, checkedById: null },
+    });
+  });
+
+  it("never touches a row that's already checked", async () => {
+    prisma.groceryList.findUniqueOrThrow.mockResolvedValue({
+      id: "list1",
+      items: [{ id: "item1", ingredientId: "ing_milk", label: null, checked: true }],
+    } as never);
+
+    await checkOffPurchase(prisma, actor, { ingredientId: "ing_milk", label: null, quantity: 1 });
+
+    expect(prisma.groceryListItem.update).not.toHaveBeenCalled();
+  });
+
+  it("matches an unrecognized item by exact, case-insensitive label text", async () => {
+    prisma.groceryList.findUniqueOrThrow.mockResolvedValue({
+      id: "list1",
+      items: [{ id: "item1", ingredientId: null, label: "Soap", checked: false }],
+    } as never);
+
+    await checkOffPurchase(prisma, actor, { ingredientId: null, label: "soap", quantity: null });
+
+    expect(prisma.groceryListItem.update).toHaveBeenCalledWith({
+      where: { id: "item1" },
+      data: { checked: true, checkedById: null },
+    });
+  });
+
+  it("creates a new already-checked row when nothing matches", async () => {
+    prisma.groceryList.findUniqueOrThrow.mockResolvedValue({ id: "list1", items: [] } as never);
+
+    await checkOffPurchase(prisma, actor, { ingredientId: "ing_new", label: null, quantity: 2 });
+
+    expect(prisma.groceryListItem.create).toHaveBeenCalledWith({
+      data: {
+        listId: "list1",
+        ingredientId: "ing_new",
+        label: null,
+        quantity: 2,
+        checked: true,
+        source: "receipt",
+      },
+    });
+  });
 });
 
 describe("setChecked", () => {

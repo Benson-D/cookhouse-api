@@ -26,6 +26,15 @@ describe("confirmPurchases", () => {
     prisma.receipt.findUnique.mockResolvedValue({ id: "rc1", clerkOrgId: "org_mine" } as never);
     prisma.user.findUnique.mockResolvedValue({ id: "local_1" } as never);
     prisma.purchase.create.mockResolvedValue({} as never);
+
+    // checkOffPurchase's getActive call — no active list yet, and no items
+    // on the freshly-created one, so every item falls to the "no match"
+    // create-a-checked-row branch unless a test overrides this.
+    prisma.groceryList.findFirst.mockResolvedValue(null);
+    prisma.groceryList.create.mockResolvedValue({ id: "list1" } as never);
+    prisma.stapleReminder.findMany.mockResolvedValue([] as never);
+    prisma.groceryList.findUniqueOrThrow.mockResolvedValue({ id: "list1", items: [] } as never);
+    prisma.groceryListItem.create.mockResolvedValue({} as never);
   });
 
   it("uses the matching ingredient when the description resolves", async () => {

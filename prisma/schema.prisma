@@ -201,7 +201,7 @@ model GroceryListItem {
   unitId       String?
   quantity     Float?
   checked      Boolean  @default(false)
-  source       String // "recipe" | "staple" | "manual"
+  source       String // "recipe" | "staple" | "manual" | "receipt"
   addedById    String?
   checkedById  String?
   createdAt    DateTime @default(now())
