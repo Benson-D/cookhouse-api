@@ -4,7 +4,11 @@ import { mergeLines, type MergeLine, type UnitRef } from "../../lib/units.js";
 import { computeFreshlyStocked, DAY_MS } from "../../lib/staples.js";
 import { getOrSync } from "../users/users.service.js";
 import { findExisting } from "../ingredients/ingredients.service.js";
-import type { AddItemInput, HistoryInput } from "./grocery-lists.input.js";
+import type {
+  AddItemInput,
+  HistoryInput,
+  SetCategoryOverrideInput,
+} from "./grocery-lists.input.js";
 
 type Actor = { clerkOrgId: string; clerkUserId: string };
 
@@ -221,7 +225,9 @@ async function mergeIntoList(
 }
 
 /**
- * The household's current list, created on first access.
+ * The household's current list, created on first access, plus its category
+ * overrides — returned together so the frontend gets everything it needs
+ * from one query rather than a second round trip.
  *
  * This is what enforces "exactly one active list per household" — every
  * caller gets the active list through here, which finds one or creates it,
@@ -244,11 +250,15 @@ export async function getActive(prisma: PrismaClient, actor: Actor) {
 
   await applyDueStaples(prisma, listId, actor.clerkOrgId);
 
-  const list = await prisma.groceryList.findUniqueOrThrow({
-    where: { id: listId },
-    include: itemsInclude,
-  });
-  return withLastEdited(list);
+  // Fetched together — one round trip for the frontend instead of two.
+  const [list, categoryOverrides] = await Promise.all([
+    prisma.groceryList.findUniqueOrThrow({
+      where: { id: listId },
+      include: itemsInclude,
+    }),
+    prisma.groceryCategoryOverride.findMany({ where: { clerkOrgId: actor.clerkOrgId } }),
+  ]);
+  return { ...withLastEdited(list), categoryOverrides };
 }
 
 /**
@@ -461,6 +471,44 @@ export async function checkOffPurchase(
       quantity: purchase.quantity,
       checked: true,
       source: "receipt",
+    },
+  });
+}
+
+/**
+ * Sets a household's own category for an ingredient (or an unrecognized
+ * item, by label) — never touches the shared, global Ingredient.category.
+ * Find-existing-then-update-or-create, scoped to the household; no DB-level
+ * unique constraint, same shape as this app's other service-enforced
+ * invariants. No separate "clear" action — setting a new value is the only
+ * write this needs.
+ *
+ * Writes: GroceryCategoryOverride.
+ */
+export async function setCategoryOverride(
+  prisma: PrismaClient,
+  actor: Actor,
+  input: SetCategoryOverrideInput
+) {
+  const where = input.ingredientId
+    ? { clerkOrgId: actor.clerkOrgId, ingredientId: input.ingredientId }
+    : { clerkOrgId: actor.clerkOrgId, label: input.label };
+
+  const existing = await prisma.groceryCategoryOverride.findFirst({ where });
+
+  if (existing) {
+    return prisma.groceryCategoryOverride.update({
+      where: { id: existing.id },
+      data: { category: input.category },
+    });
+  }
+
+  return prisma.groceryCategoryOverride.create({
+    data: {
+      clerkOrgId: actor.clerkOrgId,
+      ingredientId: input.ingredientId ?? null,
+      label: input.label ?? null,
+      category: input.category,
     },
   });
 }

@@ -4,6 +4,7 @@ import {
   addItemInput,
   byItemIdInput,
   historyInput,
+  setCategoryOverrideInput,
   setCheckedInput,
 } from "./grocery-lists.input.js";
 import * as lists from "./grocery-lists.service.js";
@@ -13,8 +14,13 @@ import * as lists from "./grocery-lists.service.js";
  * authorship, unlike recipes. A list belongs to the household, not its author.
  */
 export const groceryListsRouter = router({
-  /** Current list, created on first access; adds any staples now due. */
+  /** Current list plus category overrides, created on first access; adds any staples now due. */
   getActive: householdProcedure.query(({ ctx }) => lists.getActive(ctx.prisma, ctx)),
+
+  /** Sets the household's own category for an ingredient or unrecognized item. */
+  setCategoryOverride: householdProcedure
+    .input(setCategoryOverrideInput)
+    .mutation(({ ctx, input }) => lists.setCategoryOverride(ctx.prisma, ctx, input)),
 
   /** Merge the ingredients of one or more recipes into the active list. */
   addFromRecipes: householdProcedure

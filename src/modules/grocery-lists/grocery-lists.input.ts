@@ -17,6 +17,16 @@ export const setCheckedInput = z.object({
 
 export const byItemIdInput = z.object({ itemId: z.string() });
 
+export const setCategoryOverrideInput = z
+  .object({
+    ingredientId: z.string().optional(),
+    label: z.string().optional(),
+    category: z.string().min(1),
+  })
+  .refine((input) => Boolean(input.ingredientId) !== Boolean(input.label), {
+    message: "Provide exactly one of ingredientId or label",
+  });
+
 /** Archived (completed) lists, newest first. */
 export const historyInput = z
   .object({
@@ -27,3 +37,4 @@ export const historyInput = z
 
 export type AddItemInput = z.infer<typeof addItemInput>;
 export type HistoryInput = z.infer<typeof historyInput>;
+export type SetCategoryOverrideInput = z.infer<typeof setCategoryOverrideInput>;

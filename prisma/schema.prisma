@@ -16,19 +16,19 @@ generator client {
 // This table mirrors just what our app needs locally.
 // ─────────────────────────────
 model User {
-  id           String   @id @default(cuid())
-  clerkUserId  String   @unique // link back to Clerk
-  firstName    String?
-  lastName     String?
-  email        String   @unique
-  imageUrl     String? // Clerk's own hosted photo, mirrored on sync — Clerk owns avatar upload too
-  role         Role     @default(CLIENT)
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  clerkUserId String   @unique // link back to Clerk
+  firstName   String?
+  lastName    String?
+  email       String   @unique
+  imageUrl    String? // Clerk's own hosted photo, mirrored on sync — Clerk owns avatar upload too
+  role        Role     @default(CLIENT)
+  createdAt   DateTime @default(now())
 
   favoriteRecipes  UserFavoriteRecipe[]
   purchases        Purchase[]
-  addedListItems   GroceryListItem[] @relation("AddedBy")
-  checkedListItems GroceryListItem[] @relation("CheckedBy")
+  addedListItems   GroceryListItem[]    @relation("AddedBy")
+  checkedListItems GroceryListItem[]    @relation("CheckedBy")
   receipts         Receipt[]
   emailPreference  UserEmailPreference?
 }
@@ -99,9 +99,9 @@ model UserFavoriteRecipe {
 }
 
 model Tag {
-  id     String @id @default(cuid())
-  name   String @unique
-  type   String? // "cuisine" | "diet" | "meal_type"
+  id      String      @id @default(cuid())
+  name    String      @unique
+  type    String? // "cuisine" | "diet" | "meal_type"
   recipes RecipeTag[]
 }
 
@@ -119,15 +119,16 @@ model RecipeTag {
 // Ingredients — the canonical hub
 // ─────────────────────────────
 model Ingredient {
-  id       String @id @default(cuid())
-  name     String @unique
+  id       String  @id @default(cuid())
+  name     String  @unique
   category String? // produce, dairy, pantry, etc.
 
-  recipeUses  RecipeIngredient[]
-  listItems   GroceryListItem[]
-  purchases   Purchase[]
-  aliases     IngredientAlias[]
-  staples     StapleReminder[]
+  recipeUses        RecipeIngredient[]
+  listItems         GroceryListItem[]
+  purchases         Purchase[]
+  aliases           IngredientAlias[]
+  staples           StapleReminder[]
+  categoryOverrides GroceryCategoryOverride[]
 }
 
 // maps messy OCR/import text back to a canonical ingredient
@@ -148,8 +149,8 @@ model RecipeIngredient {
   amount       Float?
   notes        String? // e.g. "diced", "room temperature"
 
-  recipe     Recipe          @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  ingredient Ingredient      @relation(fields: [ingredientId], references: [id])
+  recipe     Recipe           @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient Ingredient       @relation(fields: [ingredientId], references: [id])
   unit       MeasurementUnit? @relation(fields: [unitId], references: [id])
 
   @@id([recipeId, ingredientId])
@@ -162,14 +163,14 @@ model RecipeIngredient {
 // Units — supports conversion for merging + comparing
 // ─────────────────────────────
 model MeasurementUnit {
-  id                String  @id @default(cuid())
-  name              String  @unique // "cup", "gram", "tablespoon"
-  abbreviation      String?
-  type              String // "volume" | "weight" | "count"
-  conversionFactor  Float? // multiply to get to base unit
-  baseUnitId        String? // self-relation to the base unit for its type
+  id               String  @id @default(cuid())
+  name             String  @unique // "cup", "gram", "tablespoon"
+  abbreviation     String?
+  type             String // "volume" | "weight" | "count"
+  conversionFactor Float? // multiply to get to base unit
+  baseUnitId       String? // self-relation to the base unit for its type
 
-  baseUnit   MeasurementUnit?  @relation("UnitConversion", fields: [baseUnitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  baseUnit    MeasurementUnit?  @relation("UnitConversion", fields: [baseUnitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   derivedFrom MeasurementUnit[] @relation("UnitConversion")
 
   recipeIngredients RecipeIngredient[]
@@ -220,8 +221,25 @@ model GroceryListItem {
   @@index([checkedById])
 }
 
+// A household's own view of an ingredient's (or label's) category — never
+// touches the shared, global Ingredient.category. Same ingredientId-or-label
+// duality as GroceryListItem; enforced in the service layer, no DB-level
+// unique constraint, same as this app's other per-household invariants.
+model GroceryCategoryOverride {
+  id           String  @id @default(cuid())
+  clerkOrgId   String
+  ingredientId String?
+  label        String?
+  category     String
+
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id])
+
+  @@index([clerkOrgId])
+  @@index([ingredientId])
+}
+
 model StapleReminder {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   clerkOrgId    String
   ingredientId  String
   frequencyDays Int
@@ -251,14 +269,14 @@ model Store {
 }
 
 model Receipt {
-  id          String   @id @default(cuid())
-  clerkOrgId  String
-  userId      String
-  storeId     String?
-  imageS3Key  String
-  status      String   @default("uploaded") // uploaded | processing | parsed | failed
-  rawOcrText  String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  clerkOrgId String
+  userId     String
+  storeId    String?
+  imageS3Key String
+  status     String   @default("uploaded") // uploaded | processing | parsed | failed
+  rawOcrText String?
+  createdAt  DateTime @default(now())
 
   user      User       @relation(fields: [userId], references: [id])
   store     Store?     @relation(fields: [storeId], references: [id])

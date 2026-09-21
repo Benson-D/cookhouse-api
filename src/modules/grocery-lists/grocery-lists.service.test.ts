@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockDeep, type DeepMockProxy } from "vitest-mock-extended";
 import type { PrismaClient } from "@prisma/client";
-import { addItem, checkOffPurchase, removeItem, setChecked } from "./grocery-lists.service.js";
+import {
+  addItem,
+  checkOffPurchase,
+  getActive,
+  removeItem,
+  setCategoryOverride,
+  setChecked,
+} from "./grocery-lists.service.js";
 
 const actor = { clerkOrgId: "org_mine", clerkUserId: "user_1" };
 
@@ -70,6 +77,60 @@ describe("checkOffPurchase", () => {
         quantity: 2,
         checked: true,
         source: "receipt",
+      },
+    });
+  });
+});
+
+describe("getActive", () => {
+  it("returns the household's category overrides alongside the list", async () => {
+    prisma.groceryList.findFirst.mockResolvedValue({ id: "list1" } as never);
+    prisma.stapleReminder.findMany.mockResolvedValue([] as never);
+    prisma.groceryList.findUniqueOrThrow.mockResolvedValue({ id: "list1", items: [] } as never);
+    prisma.groceryCategoryOverride.findMany.mockResolvedValue([
+      { id: "ov1", clerkOrgId: "org_mine", ingredientId: "ing_tofu", label: null, category: "protein" },
+    ] as never);
+
+    const result = await getActive(prisma, actor);
+
+    expect(result.categoryOverrides).toEqual([
+      { id: "ov1", clerkOrgId: "org_mine", ingredientId: "ing_tofu", label: null, category: "protein" },
+    ]);
+  });
+});
+
+describe("setCategoryOverride", () => {
+  it("updates an existing override for the same ingredient", async () => {
+    prisma.groceryCategoryOverride.findFirst.mockResolvedValue({ id: "ov1" } as never);
+    prisma.groceryCategoryOverride.update.mockResolvedValue({} as never);
+
+    await setCategoryOverride(prisma, actor, { ingredientId: "ing_tofu", category: "protein" });
+
+    expect(prisma.groceryCategoryOverride.findFirst).toHaveBeenCalledWith({
+      where: { clerkOrgId: "org_mine", ingredientId: "ing_tofu" },
+    });
+    expect(prisma.groceryCategoryOverride.update).toHaveBeenCalledWith({
+      where: { id: "ov1" },
+      data: { category: "protein" },
+    });
+    expect(prisma.groceryCategoryOverride.create).not.toHaveBeenCalled();
+  });
+
+  it("creates a new override by label when nothing exists yet", async () => {
+    prisma.groceryCategoryOverride.findFirst.mockResolvedValue(null);
+    prisma.groceryCategoryOverride.create.mockResolvedValue({} as never);
+
+    await setCategoryOverride(prisma, actor, { label: "soap", category: "household" });
+
+    expect(prisma.groceryCategoryOverride.findFirst).toHaveBeenCalledWith({
+      where: { clerkOrgId: "org_mine", label: "soap" },
+    });
+    expect(prisma.groceryCategoryOverride.create).toHaveBeenCalledWith({
+      data: {
+        clerkOrgId: "org_mine",
+        ingredientId: null,
+        label: "soap",
+        category: "household",
       },
     });
   });
