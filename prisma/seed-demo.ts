@@ -45,7 +45,7 @@ const ingredients: Array<{ name: string; category: string }> = [
   { name: "parmesan", category: "dairy" },
   { name: "spaghetti", category: "pantry" },
   { name: "pancetta", category: "meat" },
-  { name: "black pepper", category: "pantry" },
+  { name: "black pepper", category: "spice" },
   { name: "olive oil", category: "pantry" },
   { name: "garlic", category: "produce" },
   { name: "chicken thighs", category: "meat" },
@@ -62,8 +62,8 @@ const ingredients: Array<{ name: string; category: string }> = [
   { name: "cheddar", category: "dairy" },
   { name: "lime", category: "produce" },
   { name: "coriander", category: "produce" },
-  { name: "cumin", category: "pantry" },
-  { name: "smoked paprika", category: "pantry" },
+  { name: "cumin", category: "spice" },
+  { name: "smoked paprika", category: "spice" },
   { name: "soy sauce", category: "pantry" },
   { name: "ginger", category: "produce" },
   { name: "sesame oil", category: "pantry" },
@@ -99,13 +99,13 @@ const ingredients: Array<{ name: string; category: string }> = [
   { name: "red lentils", category: "pantry" },
   { name: "spinach", category: "produce" },
   { name: "yoghurt", category: "dairy" },
-  { name: "curry powder", category: "pantry" },
+  { name: "curry powder", category: "spice" },
   { name: "peanut butter", category: "pantry" },
   { name: "egg noodles", category: "pantry" },
   { name: "prawns", category: "seafood" },
   { name: "maple syrup", category: "pantry" },
   { name: "apples", category: "produce" },
-  { name: "cinnamon", category: "pantry" },
+  { name: "cinnamon", category: "spice" },
   { name: "puff pastry", category: "chilled" },
   { name: "bread", category: "bakery" },
   { name: "jelly", category: "pantry" },
@@ -1112,7 +1112,7 @@ async function main() {
     });
   }
 
-  const flour = list.items.find((item) => item.ingredient.name === "flour");
+  const flour = list.items.find((item) => item.ingredient?.name === "flour");
   console.log(
     [
       `Seeded ${recipes.length} recipes (${favorites.length} favorited), ${staples.length} staples,`,

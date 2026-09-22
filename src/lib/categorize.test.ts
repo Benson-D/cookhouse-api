@@ -56,11 +56,18 @@ describe("categorize", () => {
     expect(categorize("peas")).toBe("produce");
   });
 
-  it("resolves a sauce/condiment to pantry, not the meat word it contains", () => {
+  it("resolves a sauce/condiment to pantry, not the seafood word it contains", () => {
     expect(categorize("oyster sauce")).toBe("pantry");
     expect(categorize("fish sauce")).toBe("pantry");
-    expect(categorize("oysters")).toBe("meat");
-    expect(categorize("fish")).toBe("meat");
+    expect(categorize("oysters")).toBe("seafood");
+    expect(categorize("fish")).toBe("seafood");
+  });
+
+  it("keeps seafood separate from land meat", () => {
+    expect(categorize("chicken")).toBe("meat");
+    expect(categorize("ground beef")).toBe("meat");
+    expect(categorize("salmon")).toBe("seafood");
+    expect(categorize("shrimp")).toBe("seafood");
   });
 
   it("resolves a spiced/prepared form to its own category, not the base word's", () => {
