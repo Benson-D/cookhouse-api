@@ -44,7 +44,7 @@
     "libheif-js": "^1.23.2",
     "morgan": "^1.12.1",
     "pg": "^8.13.0",
-    "rate-limiter-flexible": "^11.2.0",
+    "rate-limiter-flexible": "^11.2.1",
     "resend": "^6.28.0",
     "zod": "^3.23.8"
   },
