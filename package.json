@@ -58,7 +58,7 @@
     "prisma": "^7.10.0",
     "tsx": "^4.23.13",
     "typescript": "^5.5.4",
-    "vitest": "^4.1.11",
+    "vitest": "^5.0.1",
     "vitest-mock-extended": "^5.1.1"
   },
   "pnpm": {
