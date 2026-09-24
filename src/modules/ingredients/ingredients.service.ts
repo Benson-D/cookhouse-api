@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { categorize } from "../../lib/categorize.js";
+import { categorize, categorizeExact } from "../../lib/categorize.js";
 import { escapeLikeWildcards } from "../../lib/search.js";
 
 /**
@@ -83,6 +83,55 @@ export async function findOrCreate(
   return prisma.ingredient.upsert({
     where: { name: normalized },
     create: { name: normalized, category: resolvedCategory },
+    update: {},
+  });
+}
+
+/**
+ * Like `findOrCreate`, but never invents an ingredient for something
+ * unrecognized — a miss only creates when `categorize()` confidently
+ * recognizes the name (food, household, alcohol, whatever — as long as
+ * it's a real thing), unlike `findOrCreate`, which always creates even when
+ * `categorize()` comes back empty. Returns `null` on a miss, leaving the
+ * caller to decide the fallback (a free-text label, typically).
+ *
+ * Writes: Ingredient (only when genuinely new and confidently categorized).
+ */
+export async function findOrCreateIfRecognized(prisma: PrismaClient, name: string) {
+  const existing = await findExisting(prisma, name);
+  if (existing) return existing;
+
+  const category = categorize(name);
+  if (!category) return null;
+
+  const normalized = name.trim().toLowerCase();
+  // upsert, not create — two concurrent callers resolving the same new name
+  // converge on one row instead of colliding on the unique constraint.
+  return prisma.ingredient.upsert({
+    where: { name: normalized },
+    create: { name: normalized, category },
+    update: {},
+  });
+}
+
+/**
+ * Like `findOrCreateIfRecognized`, but uses `categorizeExact` — used by
+ * `groceryLists.addItem`, since typed text can be a free-text note rather
+ * than an item name. Receipts keep using `findOrCreateIfRecognized`.
+ *
+ * Writes: Ingredient (only when genuinely new and an exact keyword match).
+ */
+export async function findOrCreateIfExactMatch(prisma: PrismaClient, name: string) {
+  const existing = await findExisting(prisma, name);
+  if (existing) return existing;
+
+  const category = categorizeExact(name);
+  if (!category) return null;
+
+  const normalized = name.trim().toLowerCase();
+  return prisma.ingredient.upsert({
+    where: { name: normalized },
+    create: { name: normalized, category },
     update: {},
   });
 }

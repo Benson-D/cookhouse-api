@@ -3,7 +3,8 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { mergeLines, type MergeLine, type UnitRef } from "../../lib/units.js";
 import { computeFreshlyStocked, DAY_MS } from "../../lib/staples.js";
 import { getOrSync } from "../users/users.service.js";
-import { findExisting } from "../ingredients/ingredients.service.js";
+import { findOrCreateIfExactMatch } from "../ingredients/ingredients.service.js";
+import { CATEGORIES } from "../../lib/categorize.js";
 import type {
   AddItemInput,
   HistoryInput,
@@ -372,14 +373,12 @@ export async function addFromRecipes(
 }
 
 /**
- * Adds one manually-entered item to the active list, by typed name.
+ * Adds one manually-entered item to the active list, by typed name. A miss
+ * only creates a new `Ingredient` when the name exactly matches a category
+ * keyword; otherwise stores the typed text as a lowercased `label`.
  *
- * Looks up the name against existing ingredients (alias-aware, same lookup
- * `findOrCreate` uses) but never creates a new one — a match merges into the
- * existing row like any other ingredient; no match just stores the typed
- * text as `label`, since there's nothing to canonicalize or merge it with.
- *
- * Writes: GroceryList (if none active), GroceryListItem, User (first request).
+ * Writes: GroceryList (if none active), GroceryListItem, User (first request),
+ * Ingredient (only when genuinely new and an exact keyword match).
  * Throws NOT_FOUND if the unit id is unknown.
  */
 export async function addItem(
@@ -397,7 +396,7 @@ export async function addItem(
     throw new TRPCError({ code: "NOT_FOUND", message: "Unknown unit" });
   }
 
-  const ingredient = await findExisting(prisma, input.name);
+  const ingredient = await findOrCreateIfExactMatch(prisma, input.name);
 
   if (ingredient) {
     // Defaults to 1, not null — a null quantity never accumulates on merge.
@@ -412,7 +411,7 @@ export async function addItem(
     await prisma.groceryListItem.create({
       data: {
         listId: list.id,
-        label: input.name.trim(),
+        label: input.name.trim().toLowerCase(),
         unitId: unit?.id,
         quantity: input.quantity ?? null,
         source: "manual",
@@ -511,6 +510,16 @@ export async function setCategoryOverride(
       category: input.category,
     },
   });
+}
+
+/**
+ * Every raw category value `categorize()` knows about, for the override
+ * picker — grouping or display labels (e.g. combining "meat" and "seafood"
+ * into one section) are a presentational call, left to the frontend, same
+ * as how a `GroceryListItem.source` value gets formatted for display there.
+ */
+export function categories(): string[] {
+  return Object.keys(CATEGORIES);
 }
 
 /**

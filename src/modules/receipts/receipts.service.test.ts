@@ -91,7 +91,7 @@ describe("confirmPurchases", () => {
     expect(prisma.ingredient.upsert).not.toHaveBeenCalled();
     expect(prisma.purchase.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ ingredientId: null, label: "GV WHL MLK 2Z" }),
+        data: expect.objectContaining({ ingredientId: null, label: "gv whl mlk 2z" }),
       })
     );
   });

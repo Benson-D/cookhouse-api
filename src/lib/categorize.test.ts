@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categorize } from "./categorize.js";
+import { categorize, categorizeExact } from "./categorize.js";
 
 describe("categorize", () => {
   it("matches plain produce, dairy, and meat items", () => {
@@ -114,5 +114,20 @@ describe("categorize", () => {
     expect(categorize("GV WHL MLK")).toBe(null);
     expect(categorize("xyz123")).toBe(null);
     expect(categorize("")).toBe(null);
+  });
+});
+
+describe("categorizeExact", () => {
+  it("matches a name that is exactly a keyword or override phrase, plurals included", () => {
+    expect(categorizeExact("soap")).toBe("household");
+    expect(categorizeExact("dish soap")).toBe("household");
+    expect(categorizeExact("bananas")).toBe("produce");
+    expect(categorizeExact("almond milk")).toBe("beverages");
+  });
+
+  it("returns null when a keyword is only part of a longer phrase", () => {
+    expect(categorizeExact("granola the blueberry kind")).toBe(null);
+    expect(categorizeExact("chicken thighs")).toBe(null);
+    expect(categorizeExact("2% milk")).toBe(null);
   });
 });

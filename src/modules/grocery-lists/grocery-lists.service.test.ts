@@ -221,16 +221,49 @@ describe("addItem", () => {
     });
   });
 
-  it("stores the typed text as a label when nothing matches", async () => {
+  it("creates a real categorized ingredient when nothing matches but categorize() recognizes it", async () => {
     prisma.ingredientAlias.findFirst.mockResolvedValue(null);
     prisma.ingredient.findFirst.mockResolvedValue(null);
+    prisma.ingredient.upsert.mockResolvedValue({ id: "ing_soap", name: "soap" } as never);
 
     await addItem(prisma, { name: "soap" }, actor);
 
+    expect(prisma.ingredient.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: { name: "soap", category: "household" } })
+    );
+    expect(prisma.groceryListItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ ingredientId: "ing_soap" }) })
+    );
+  });
+
+  it("stores the typed text as a label when nothing matches or categorizes", async () => {
+    prisma.ingredientAlias.findFirst.mockResolvedValue(null);
+    prisma.ingredient.findFirst.mockResolvedValue(null);
+
+    await addItem(prisma, { name: "xyz123" }, actor);
+
+    expect(prisma.ingredient.upsert).not.toHaveBeenCalled();
     expect(prisma.groceryListItem.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         listId: "list1",
-        label: "soap",
+        label: "xyz123",
+        source: "manual",
+        addedById: "local_1",
+      }),
+    });
+  });
+
+  it("stores a free-text note containing a keyword as a label, not a new ingredient", async () => {
+    prisma.ingredientAlias.findFirst.mockResolvedValue(null);
+    prisma.ingredient.findFirst.mockResolvedValue(null);
+
+    await addItem(prisma, { name: "granola the blueberry kind" }, actor);
+
+    expect(prisma.ingredient.upsert).not.toHaveBeenCalled();
+    expect(prisma.groceryListItem.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        listId: "list1",
+        label: "granola the blueberry kind",
         source: "manual",
         addedById: "local_1",
       }),

@@ -1,9 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import type { PrismaClient } from "@prisma/client";
 import { getOrSync } from "../users/users.service.js";
-import { findExisting as findExistingIngredient } from "../ingredients/ingredients.service.js";
+import {
+  findExisting as findExistingIngredient,
+  findOrCreateIfRecognized,
+} from "../ingredients/ingredients.service.js";
 import { checkOffPurchase } from "../grocery-lists/grocery-lists.service.js";
-import { categorize } from "../../lib/categorize.js";
 import {
   buildReceiptImageKey,
   createReadUrl,
@@ -63,37 +65,14 @@ export async function createUpload(
 
 /**
  * Creates the `Receipt` row and runs Textract against the uploaded object,
- * synchronously — see root CLAUDE.md ("Receipt OCR processing model") for
- * why this isn't queued.
- *
- * Nothing beyond the `Receipt` row itself is written here: the parsed line
- * items are returned to the caller for review, not turned into `Purchase`
- * rows until `confirmPurchases`. A Textract failure still leaves a `Receipt`
- * row (status `failed`) rather than silently losing the upload.
- *
- * Runs `ensureWebSafeImage` first — if the uploaded object turns out to
- * actually be HEIC (regardless of what it was labeled as; iOS Safari can
- * report a real HEIC file's type as image/jpeg via the file picker), it's
- * converted to JPEG and re-stored before Textract ever sees it, and the
- * `Receipt` row points at the converted object from the start. That's what
- * keeps this reliably synchronous rather than needing a try-Textract,
- * catch-and-retry dance.
- *
- * Each line item is also checked against `Ingredient`/`IngredientAlias` —
- * read-only, via `ingredients.findExisting` — and annotated with what it
- * matched, if anything. This is what lets a review screen tell "new
- * ingredient" lines apart from ones that already resolve to something, before
- * `confirmPurchases` commits anything. There's no fuzzy/low-confidence tier:
- * matching here is exact name or exact alias, same as everywhere else in this
- * codebase — a line either matches or it's new, nothing in between yet.
- *
- * The response also includes `imageUrl` (the converted object's real,
- * renderable URL) so the review screen can swap away from a local
- * `URL.createObjectURL(file)` preview of the *original* picked file once
- * this resolves — that local preview is still raw HEIC bytes if that's what
- * was picked, and no browser but Safari can render those. `ensureWebSafeImage`
- * fixes the *stored* image; this is what lets the caller stop showing the
- * unfixed one.
+ * synchronously. Converts the image to JPEG first if it's actually HEIC
+ * (regardless of its declared type), so Textract always gets a readable
+ * image. A Textract failure still leaves the `Receipt` row (status `failed`)
+ * rather than losing the upload. Each line item is annotated with whether it
+ * matches an existing `Ingredient`/`IngredientAlias` (exact match only), so
+ * the review screen can tell new items from matched ones before anything
+ * commits. Returns the parsed items, unwritten, plus a renderable `imageUrl`
+ * for the converted image.
  *
  * Throws BAD_REQUEST if the key doesn't belong to this household's receipts.
  */
@@ -176,42 +155,22 @@ async function findOrCreateStore(prisma: PrismaClient, name: string) {
 }
 
 /**
- * Resolves a scanned line's ingredient without ever inventing a fake one.
- * Checks `IngredientAlias`/exact name first (same lookup a recipe uses), so
- * messy receipt text ("ORG MLK 2%") converges on an existing `Ingredient`
- * rather than spawning a near-duplicate. A miss only creates a new
- * `Ingredient` when `categorize()` confidently recognizes it (food,
- * household, alcohol — whatever it is, it's a real thing); anything it
- * can't place — a brand name, garbled OCR — becomes a plain label instead,
- * never a permanent row nobody asked for.
+ * Resolves a scanned line's ingredient without inventing a fake one. Checks
+ * `IngredientAlias`/exact name first; a miss only creates a new `Ingredient`
+ * when `categorize()` confidently recognizes it, otherwise stores the text
+ * as a lowercased `label`.
  */
 async function resolvePurchaseItem(prisma: PrismaClient, description: string) {
-  const existing = await findExistingIngredient(prisma, description);
-  if (existing) {
-    return { ingredientId: existing.id, label: null };
-  }
-
-  const category = categorize(description);
-  if (category) {
-    // upsert, not create — two concurrent scans resolving the same new name
-    // converge on one row instead of colliding on the unique constraint.
-    const normalized = description.trim().toLowerCase();
-    const created = await prisma.ingredient.upsert({
-      where: { name: normalized },
-      create: { name: normalized, category },
-      update: {},
-    });
-    return { ingredientId: created.id, label: null };
-  }
-
-  return { ingredientId: null, label: description.trim() };
+  const ingredient = await findOrCreateIfRecognized(prisma, description);
+  return ingredient
+    ? { ingredientId: ingredient.id, label: null }
+    : { ingredientId: null, label: description.trim().toLowerCase() };
 }
 
 /**
  * Turns reviewed line items into `Purchase` rows — the step that actually
  * affects spending totals. Also checks each item off the active grocery
- * list (or adds it, already checked, if it wasn't there) — see
- * grocery-lists.service.ts's checkOffPurchase for the matching rules.
+ * list, or adds it already checked if it wasn't there.
  *
  * Writes: Store (if new), Ingredient (only when genuinely new and
  * confidently categorized), Purchase (one per item), GroceryListItem
@@ -231,11 +190,9 @@ export async function confirmPurchases(
   const user = await getOrSync(prisma, actor.clerkUserId);
   const store = input.storeName ? await findOrCreateStore(prisma, input.storeName) : null;
 
-  // Sequential, not Promise.all — avoids two identical line items on this
-  // one receipt racing each other into a double-created row. Doesn't fix
-  // the broader cross-request race (GroceryListItem has no unique
-  // constraint on listId+ingredientId — see root CLAUDE.md); that gap is
-  // unchanged by this.
+  // Sequential, not Promise.all — only prevents two lines on this one
+  // receipt from double-creating a row; the broader cross-request race
+  // is unchanged.
   const purchases = [];
   for (const item of input.items) {
     const { ingredientId, label } = await resolvePurchaseItem(prisma, item.description);
@@ -283,16 +240,9 @@ export async function getById(prisma: PrismaClient, id: string, actor: Actor) {
 }
 
 /**
- * Deletes a receipt and its photo. Purchases it produced are **detached, not
- * deleted** — `Purchase.receiptId` is set null rather than the rows being
- * removed, so a receipt cleanup can never silently erase real spending
- * history. Matches the org-departure retention rule elsewhere in this app:
- * detach the link, keep the record.
- *
- * One consequence worth knowing: this doesn't fully clean up a duplicate
- * scan — deleting the extra receipt leaves its (also duplicate) purchases in
- * place, still counted in spending totals. There's no per-purchase delete
- * yet; that's a deliberate, separate gap, not an oversight here.
+ * Deletes a receipt and its photo. Purchases it produced are detached, not
+ * deleted (`Purchase.receiptId` set null), so cleanup never erases spending
+ * history — including a duplicate scan's purchases, which stay counted.
  *
  * Throws NOT_FOUND if missing or belongs to another household.
  */

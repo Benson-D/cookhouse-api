@@ -1,4 +1,4 @@
-import { householdProcedure, router } from "../../trpc.js";
+import { householdProcedure, protectedProcedure, router } from "../../trpc.js";
 import {
   addFromRecipesInput,
   addItemInput,
@@ -53,4 +53,7 @@ export const groceryListsRouter = router({
   history: householdProcedure
     .input(historyInput)
     .query(({ ctx, input }) => lists.history(ctx.prisma, input, ctx)),
+
+  /** Every raw category value categorize() recognizes — not household-scoped. */
+  categories: protectedProcedure.query(() => lists.categories()),
 });

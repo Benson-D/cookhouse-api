@@ -221,3 +221,39 @@ export function categorize(name: string): string | null {
 
   return null;
 }
+
+/**
+ * Same as `keywordPattern`, but anchored to the whole string rather than a
+ * word boundary anywhere inside it.
+ */
+function exactKeywordPattern(keyword: string): RegExp {
+  if (/[^aeiou]y$/i.test(keyword)) {
+    const stem = escapeRegExp(keyword.slice(0, -1));
+    return new RegExp(`^${stem}(y|ies)$`, "i");
+  }
+  return new RegExp(`^${escapeRegExp(keyword)}(e?s)?$`, "i");
+}
+
+/**
+ * Like `categorize`, but requires the whole name to be a keyword or
+ * override phrase, not just contain one — so a note like "granola the
+ * blueberry kind" doesn't count as recognizing "granola".
+ */
+export function categorizeExact(name: string): string | null {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return null;
+
+  for (const { phrase, category } of OVERRIDES) {
+    if (normalized === phrase) {
+      return category;
+    }
+  }
+
+  for (const [category, keywords] of Object.entries(CATEGORIES)) {
+    if (keywords.some((keyword) => exactKeywordPattern(keyword).test(normalized))) {
+      return category;
+    }
+  }
+
+  return null;
+}
