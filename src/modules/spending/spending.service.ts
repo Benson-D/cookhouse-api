@@ -97,14 +97,28 @@ export async function byCategory(
   };
 }
 
+const TOP_STORE_COUNT = 5;
+const TOP_ITEMS_PER_STORE = 5;
+
+type ItemTotal = { ingredientId: string | null; name: string; total: number; purchaseCount: number };
+
+type StoreSpendRow = {
+  store: string;
+  storeId: string | null;
+  total: number;
+  topItems: ItemTotal[] | null;
+  foldedStores: { store: string; total: number }[] | null;
+};
+
 /**
- * Spend grouped by store. Same reduce-in-memory approach as `byCategory`, and
- * the same reasoning for why: small, date-bounded row set, no raw SQL needed.
+ * Spend grouped by store, ranked and capped to the top 5 plus one "Other"
+ * row folding the rest — each of the 5 also carries its own top 5 items, for
+ * a hover tooltip, so the chart never needs a second per-store query.
  *
  * `storeId` is nullable (a manually-entered purchase, or a receipt with no
  * detected vendor) — those group under "Unknown store" rather than being
  * dropped, matching how a grocery line with no quantity still shows the
- * ingredient rather than disappearing (see root CLAUDE.md's domain rules).
+ * ingredient rather than disappearing.
  */
 export async function byStore(
   prisma: PrismaClient,
@@ -116,21 +130,73 @@ export async function byStore(
 
   const purchases = await prisma.purchase.findMany({
     where,
-    select: { price: true, store: { select: { name: true } } },
+    select: {
+      price: true,
+      label: true,
+      store: { select: { id: true, name: true } },
+      ingredient: { select: { id: true, name: true } },
+    },
   });
 
-  const totals = new Map<string, number>();
+  const storeGroups = new Map<
+    string,
+    { storeId: string | null; store: string; total: number; items: Map<string, ItemTotal> }
+  >();
+
   for (const purchase of purchases) {
-    const store = purchase.store?.name ?? "Unknown store";
-    totals.set(store, (totals.get(store) ?? 0) + purchase.price);
+    const storeKey = purchase.store?.id ?? "unknown";
+    let group = storeGroups.get(storeKey);
+    if (!group) {
+      group = {
+        storeId: purchase.store?.id ?? null,
+        store: purchase.store?.name ?? "Unknown store",
+        total: 0,
+        items: new Map(),
+      };
+      storeGroups.set(storeKey, group);
+    }
+    group.total += purchase.price;
+
+    const itemKey = purchase.ingredient?.id ?? `label:${purchase.label}`;
+    const existingItem = group.items.get(itemKey);
+    if (existingItem) {
+      existingItem.total += purchase.price;
+      existingItem.purchaseCount += 1;
+    } else {
+      group.items.set(itemKey, {
+        ingredientId: purchase.ingredient?.id ?? null,
+        name: purchase.ingredient?.name ?? purchase.label ?? "Unknown",
+        total: purchase.price,
+        purchaseCount: 1,
+      });
+    }
   }
 
-  return {
-    ...range,
-    stores: [...totals.entries()]
-      .map(([store, total]) => ({ store, total }))
-      .sort((a, b) => b.total - a.total),
-  };
+  const sortedStores = [...storeGroups.values()].sort((a, b) => b.total - a.total);
+  const topStores = sortedStores.slice(0, TOP_STORE_COUNT);
+  const remainingStores = sortedStores.slice(TOP_STORE_COUNT);
+
+  const stores: StoreSpendRow[] = topStores.map((group) => ({
+    store: group.store,
+    storeId: group.storeId,
+    total: group.total,
+    topItems: [...group.items.values()]
+      .sort((a, b) => b.total - a.total)
+      .slice(0, TOP_ITEMS_PER_STORE),
+    foldedStores: null,
+  }));
+
+  if (remainingStores.length > 0) {
+    stores.push({
+      store: "Other",
+      storeId: null,
+      total: remainingStores.reduce((sum, group) => sum + group.total, 0),
+      topItems: null,
+      foldedStores: remainingStores.map((group) => ({ store: group.store, total: group.total })),
+    });
+  }
+
+  return { ...range, stores };
 }
 
 /**
