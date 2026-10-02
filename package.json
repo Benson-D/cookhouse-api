@@ -32,7 +32,7 @@
     "@aws-sdk/client-s3": "^3.1145.0",
     "@aws-sdk/client-textract": "^3.1145.0",
     "@aws-sdk/s3-request-presigner": "^3.1145.0",
-    "@clerk/backend": "^1.18.0",
+    "@clerk/backend": "^3.20.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@trpc/server": "^11.19.0",
