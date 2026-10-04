@@ -1,8 +1,9 @@
 import { z } from "zod";
 
+/** `<Date>` pins the input type — in zod 4 a bare `coerce.date()` input is `unknown`, which the published contract would hand the frontend. */
 const dateRangeInput = z.object({
-  from: z.coerce.date().optional(),
-  to: z.coerce.date().optional(),
+  from: z.coerce.date<Date>().optional(),
+  to: z.coerce.date<Date>().optional(),
 });
 
 /**
@@ -17,16 +18,16 @@ const filtersInput = z.object({
   userId: z.string().optional(),
 });
 
-export const summaryInput = dateRangeInput.merge(filtersInput);
-export const trendInput = dateRangeInput.merge(filtersInput);
+export const summaryInput = dateRangeInput.extend(filtersInput.shape);
+export const trendInput = dateRangeInput.extend(filtersInput.shape);
 
 /** No `category` filter — redundant when the report already groups by it. */
-export const byCategoryInput = dateRangeInput.merge(filtersInput.omit({ category: true }));
+export const byCategoryInput = dateRangeInput.extend(filtersInput.omit({ category: true }).shape);
 
 /** No `storeId` filter — redundant when the report already groups by it. */
-export const byStoreInput = dateRangeInput.merge(filtersInput.omit({ storeId: true }));
+export const byStoreInput = dateRangeInput.extend(filtersInput.omit({ storeId: true }).shape);
 
-export const topItemsInput = dateRangeInput.merge(filtersInput).extend({
+export const topItemsInput = dateRangeInput.extend(filtersInput.shape).extend({
   limit: z.number().int().positive().max(50).default(10),
 });
 

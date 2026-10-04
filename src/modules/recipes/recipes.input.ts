@@ -14,19 +14,30 @@ const recipeIngredientInput = z.object({
   notes: z.string().optional(),
 });
 
-export const createRecipeInput = z.object({
+const recipeFields = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   servings: z.number().int().positive().optional(),
   prepTime: z.number().int().nonnegative().optional(),
   cookingTime: z.number().int().nonnegative().optional(),
   instructions: z.array(recipeStepInput),
-  sourceUrl: z.string().url().optional(),
-  ingredients: z.array(recipeIngredientInput).default([]),
-  tagIds: z.array(z.string()).default([]),
+  sourceUrl: z.url().optional(),
+  ingredients: z.array(recipeIngredientInput),
+  tagIds: z.array(z.string()),
 });
 
-export const updateRecipeInput = createRecipeInput.partial().extend({
+export const createRecipeInput = recipeFields.extend({
+  ingredients: recipeFields.shape.ingredients.default([]),
+  tagIds: recipeFields.shape.tagIds.default([]),
+});
+
+/**
+ * Built from the default-free fields, not `createRecipeInput.partial()`: in
+ * zod 4 an optional field still receives its default, so an update that omits
+ * `ingredients`/`tagIds` would arrive as `[]` — which `update` treats as
+ * "replace with nothing" and deletes them.
+ */
+export const updateRecipeInput = recipeFields.partial().extend({
   id: z.string(),
 });
 

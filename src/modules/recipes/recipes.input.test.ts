@@ -46,6 +46,14 @@ describe("updateRecipeInput", () => {
     expect(updateRecipeInput.safeParse({ id: "r1" }).success).toBe(true);
     expect(updateRecipeInput.safeParse({ name: "Soup" }).success).toBe(false);
   });
+
+  // `update` replaces ingredients and tags whenever they're present, so an
+  // `[]` here would wipe both on an unrelated edit.
+  it("leaves ingredients and tags out when the update doesn't send them", () => {
+    const parsed = updateRecipeInput.parse({ id: "r1", name: "Soup" });
+    expect(parsed).not.toHaveProperty("ingredients");
+    expect(parsed).not.toHaveProperty("tagIds");
+  });
 });
 
 describe("listRecipesInput", () => {

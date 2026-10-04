@@ -24,7 +24,7 @@ export const setCategoryOverrideInput = z
     category: z.string().min(1),
   })
   .refine((input) => Boolean(input.ingredientId) !== Boolean(input.label), {
-    message: "Provide exactly one of ingredientId or label",
+    error: "Provide exactly one of ingredientId or label",
   });
 
 /** Archived (completed) lists, newest first. */

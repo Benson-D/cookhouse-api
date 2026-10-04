@@ -23,7 +23,7 @@ const confirmedLineItem = z.object({
 export const confirmPurchasesInput = z.object({
   receiptId: z.string(),
   storeName: z.string().min(1).optional(),
-  purchasedAt: z.coerce.date().optional(),
+  purchasedAt: z.coerce.date<Date>().optional(),
   items: z.array(confirmedLineItem).min(1),
 });
 
