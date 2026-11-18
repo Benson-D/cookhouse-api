@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import type { DateRangeInput, FiltersInput, TopItemsInput } from "./spending.input.js";
+import type { DateRangeInput, FiltersInput, TopItemsInput, TrendInput } from "./spending.input.js";
 
 type Actor = { clerkOrgId: string; clerkUserId: string };
 
@@ -199,41 +199,67 @@ export async function byStore(
   return { ...range, stores };
 }
 
+/** `date`'s year-month in `timeZone`, so a late-night purchase doesn't roll into the server's next day. */
+function monthKey(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === "year")!.value;
+  const month = parts.find((p) => p.type === "month")!.value;
+  return `${year}-${month}`;
+}
+
+/** Falls back to UTC on an invalid IANA zone rather than letting it throw mid-request. */
+function resolveTimeZone(timezone: string | undefined): string {
+  if (!timezone) return "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    return timezone;
+  } catch {
+    return "UTC";
+  }
+}
+
 /**
  * Spend per calendar month over the range — shaped for a chart plus a table
  * of exact figures alongside it. Every month in the range appears even with
  * zero spend, so a chart doesn't silently skip a quiet month.
  */
-export async function trend(
-  prisma: PrismaClient,
-  input: DateRangeInput & FiltersInput,
-  actor: Actor
-) {
+export async function trend(prisma: PrismaClient, input: TrendInput, actor: Actor) {
   const range = resolveTrendRange(input);
   const where = buildWhere(actor.clerkOrgId, range, input);
+  const timeZone = resolveTimeZone(input.timezone);
 
   const purchases = await prisma.purchase.findMany({
     where,
     select: { price: true, purchasedAt: true },
   });
 
-  const monthKey = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-
   const totals = new Map<string, number>();
   for (const purchase of purchases) {
-    const key = monthKey(purchase.purchasedAt);
+    const key = monthKey(purchase.purchasedAt, timeZone);
     totals.set(key, (totals.get(key) ?? 0) + purchase.price);
   }
 
-  // Walk every month in the range, not just the ones with purchases.
+  // Walk every month in the range as plain year/month integers, not Date
+  // math — Date's own getFullYear/getMonth read the server's timezone,
+  // which would undo the point of bucketing by the caller's instead.
+  const [fromYear, fromMonth] = monthKey(range.from, timeZone).split("-").map(Number);
+  const [toYear, toMonth] = monthKey(range.to, timeZone).split("-").map(Number);
+
   const months: { month: string; total: number }[] = [];
-  const cursor = new Date(range.from.getFullYear(), range.from.getMonth(), 1);
-  const end = new Date(range.to.getFullYear(), range.to.getMonth(), 1);
-  while (cursor <= end) {
-    const key = monthKey(cursor);
+  let year = fromYear;
+  let month = fromMonth;
+  while (year < toYear || (year === toYear && month <= toMonth)) {
+    const key = `${year}-${String(month).padStart(2, "0")}`;
     months.push({ month: key, total: totals.get(key) ?? 0 });
-    cursor.setMonth(cursor.getMonth() + 1);
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
   }
 
   return { ...range, months };

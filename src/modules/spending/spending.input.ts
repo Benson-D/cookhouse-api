@@ -19,7 +19,15 @@ const filtersInput = z.object({
 });
 
 export const summaryInput = dateRangeInput.extend(filtersInput.shape);
-export const trendInput = dateRangeInput.extend(filtersInput.shape);
+
+/**
+ * `timezone` is the caller's IANA zone (e.g. "America/Chicago") — month
+ * buckets are computed in it rather than the server's own, so a purchase
+ * made late at night doesn't roll into the next month. Defaults to UTC.
+ */
+export const trendInput = dateRangeInput.extend(filtersInput.shape).extend({
+  timezone: z.string().optional(),
+});
 
 /** No `category` filter — redundant when the report already groups by it. */
 export const byCategoryInput = dateRangeInput.extend(filtersInput.omit({ category: true }).shape);
@@ -33,4 +41,5 @@ export const topItemsInput = dateRangeInput.extend(filtersInput.shape).extend({
 
 export type DateRangeInput = z.infer<typeof dateRangeInput>;
 export type FiltersInput = z.infer<typeof filtersInput>;
+export type TrendInput = z.infer<typeof trendInput>;
 export type TopItemsInput = z.infer<typeof topItemsInput>;

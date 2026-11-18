@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockDeep, type DeepMockProxy } from "vitest-mock-extended";
 import type { PrismaClient } from "@prisma/client";
-import { byCategory, byStore, topItems } from "./spending.service.js";
+import { byCategory, byStore, topItems, trend } from "./spending.service.js";
 
 const actor = { clerkOrgId: "org_mine", clerkUserId: "user_1" };
 
@@ -114,6 +114,53 @@ describe("byStore", () => {
 
     expect(result.stores).toHaveLength(5);
     expect(result.stores.some((s) => s.store === "Other")).toBe(false);
+  });
+});
+
+describe("trend", () => {
+  it("buckets a late-night purchase by the caller's timezone, not the server's", async () => {
+    // 2026-11-01 01:14 UTC is 2026-10-31 20:14 in Chicago — the exact Halloween-night case.
+    prisma.purchase.findMany.mockResolvedValue([
+      { price: 100.66, purchasedAt: new Date("2026-11-01T01:14:10.279Z") },
+    ] as never);
+
+    const utcResult = await trend(
+      prisma,
+      { from: new Date("2026-10-01T00:00:00Z"), to: new Date("2026-11-30T00:00:00Z") },
+      actor
+    );
+    expect(utcResult.months).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ month: "2026-10", total: 0 }),
+        expect.objectContaining({ month: "2026-11", total: 100.66 }),
+      ])
+    );
+
+    const localResult = await trend(
+      prisma,
+      {
+        from: new Date("2026-10-01T00:00:00Z"),
+        to: new Date("2026-11-30T00:00:00Z"),
+        timezone: "America/Chicago",
+      },
+      actor
+    );
+    expect(localResult.months).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ month: "2026-10", total: 100.66 }),
+        expect.objectContaining({ month: "2026-11", total: 0 }),
+      ])
+    );
+  });
+
+  it("falls back to UTC for an invalid timezone instead of throwing", async () => {
+    prisma.purchase.findMany.mockResolvedValue([
+      { price: 5, purchasedAt: new Date("2026-10-15T12:00:00Z") },
+    ] as never);
+
+    const result = await trend(prisma, { timezone: "not/a/real/zone" }, actor);
+
+    expect(result.months.some((m) => m.month === "2026-10" && m.total === 5)).toBe(true);
   });
 });
 
